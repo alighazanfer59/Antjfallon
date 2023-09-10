@@ -1,0 +1,1621 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © vitruvius
+
+//@version=5
+strategy("Advanced Gann Swing Strategy [antjfallon]", "Advanced Gann Swing Strategy", true, max_lines_count=500, max_labels_count=500, initial_capital=10000, precision=8)
+
+
+// Inputs {
+gr_dash_left =  "------------------------- "
+gr_dash_right = " -------------------------"
+line_style_solid = "Solid", line_style_dotted = "Dotted", line_style_dashed = "Dashed"
+lbl_size_tiny = "Tiny", lbl_size_small = "Small", lbl_size_normal = "Normal", lbl_size_large = "Large"
+
+// Swing {
+sw_gr_name = gr_dash_left + "Swing" + gr_dash_right
+in_sw_mark_bars = input.bool(false, "Mark count bars?", inline="sw_bar", group=sw_gr_name)
+in_sw_mark_bull_col = input.color(color.green, "", inline="sw_bar", group=sw_gr_name)
+in_sw_mark_bear_col = input.color(color.red, "", inline="sw_bar", group=sw_gr_name)
+
+// Swing - Long {
+sw_long_gr_name = gr_dash_left + "Swing Long" + gr_dash_right
+
+in_sw_long_cnt = input.int(2, "Advanced swing count number", minval=0, group=sw_long_gr_name)
+in_sw_long_show_hl_price = input.bool(false, "Show last swing price?", inline="sw_long_price_col", group=sw_long_gr_name)
+in_sw_long_h_price_col = input.color(color.orange, "", inline="sw_long_price_col", group=sw_long_gr_name)
+in_sw_long_l_price_col = input.color(color.blue, "", inline="sw_long_price_col", group=sw_long_gr_name)
+in_sw_long_line_style = input.string(line_style_dashed, "", [line_style_solid, line_style_dotted, line_style_dashed], inline="sw_long_price_col", group=sw_long_gr_name)
+in_sw_long_line_w = input.int(1, "", inline="sw_long_price_col", group=sw_long_gr_name)
+//}
+
+// Swing - Short {
+sw_short_gr_name = gr_dash_left + "Swing Short" + gr_dash_right
+
+in_sw_short_cnt = input.int(2, "Advanced swing count number", minval=0, group=sw_short_gr_name)
+in_sw_short_show_hl_price = input.bool(false, "Show last swing price?", inline="sw_short_price_col", group=sw_short_gr_name)
+in_sw_short_h_price_col = input.color(color.orange, "", inline="sw_short_price_col", group=sw_short_gr_name)
+in_sw_short_l_price_col = input.color(color.blue, "", inline="sw_short_price_col", group=sw_short_gr_name)
+in_sw_short_line_style = input.string(line_style_dashed, "", [line_style_solid, line_style_dotted, line_style_dashed], inline="sw_short_price_col", group=sw_short_gr_name)
+in_sw_short_line_w = input.int(1, "", inline="sw_short_price_col", group=sw_short_gr_name)
+//}
+
+//}
+
+// Strategy {
+strat_gr_name = gr_dash_left + "Strategy" + gr_dash_right
+
+strat_dir_long = "Long", strat_dir_short = "Short", strat_dir_both = "Both"
+strat_entry_type_sw = "H/L", strat_entry_type_break = "Break"
+strat_pos_size_method_fixed = "Fixed", strat_pos_size_method_dyn = "Dynamic"
+strat_pos_size_price_quote = "Quote", strat_pos_size_price_base = "Base", strat_pos_size_price_percentage = "Percentage"
+tt_strat_pos_size_type = "e.g. For BTCUSD\nQuote: USD\nBase: BTC"
+tt_strat_pos_size_value = "Fixed P/S: $1K, or 0.1 BTC\nDynamic P/S: Max Risk [%]"
+
+in_strat_dir = input.string(strat_dir_long, "Direction", [strat_dir_long, strat_dir_short, strat_dir_both], group=strat_gr_name)
+in_strat_pos_size_method_type = input.string(strat_pos_size_method_fixed, "Position Size", [strat_pos_size_method_fixed, strat_pos_size_method_dyn], inline="strat_pos_size", group=strat_gr_name)
+in_strat_pos_size_price_type = input.string(strat_pos_size_price_quote, "", [strat_pos_size_price_quote, strat_pos_size_price_base, strat_pos_size_price_percentage], tooltip=tt_strat_pos_size_type, inline="strat_pos_size", group=strat_gr_name)
+in_strat_pos_size_value = input.float(100, "Position size value", tooltip=tt_strat_pos_size_value, group=strat_gr_name)
+
+// Strategy - Long {
+strat_long_gr_name = gr_dash_left + "Strategy Long" + gr_dash_right
+
+in_strat_long_entry_type = input.string(strat_entry_type_sw, "Entry type", [strat_entry_type_sw, strat_entry_type_break], group=strat_long_gr_name)
+in_strat_long_entry_off_en = input.bool(true, "Entry offset [%]", inline="strat_long_entry_off", group=strat_long_gr_name)
+in_strat_long_entry_off = input.float(1, "", step=0.1, inline="strat_long_entry_off", group=strat_long_gr_name) * 0.01
+in_strat_long_tp_en = input.bool(true, "Take profit [%]", inline="strat_long_tp", group=strat_long_gr_name)
+in_strat_long_tp_per = input.float(15.0, "", inline="strat_long_tp", group=strat_long_gr_name) * 0.01
+in_strat_long_init_sl_off = input.float(0.1, "Initial SL offset [%]", step=0.1, group=strat_long_gr_name) * 0.01
+in_strat_long_move_to_be_en = input.bool(true, "Move to breakeven?", group=strat_long_gr_name)
+in_strat_long_sl_be_off = input.float(0.1, "Breakeven offset [%]", step=0.1, group=strat_long_gr_name) * 0.01
+in_strat_long_tsl_off_en = input.bool(true, "Trailing stop loss offset [%]", inline="strat_long_tsl", group=strat_long_gr_name)
+in_strat_long_tsl_off = input.float(0.1, "", step=0.1, inline="strat_long_tsl", group=strat_long_gr_name) * 0.01
+in_strat_long_opp_limit_en = input.bool(false, "Check if macro trend showing signs of reversal", group=strat_long_gr_name)
+in_strat_long_opp_limit_per = input.float(80, "Percentage for the limit order price calculation", step=0.1, group=strat_long_gr_name) * 0.01
+in_strat_long_pi_exit_en = input.bool(false, "Exit on Pi Cycle", group=strat_long_gr_name)
+in_strat_long_ep_col = input.color(color.gray, "EP", inline="strat_long_disp_col", group=strat_long_gr_name)
+in_strat_long_tp_col = input.color(color.green, "TP", inline="strat_long_disp_col", group=strat_long_gr_name)
+in_strat_long_sl_col = input.color(color.red, "SL", inline="strat_long_disp_col", group=strat_long_gr_name)
+in_strat_long_line_w = input.int(1, "Width", inline="strat_long_disp_col", group=strat_long_gr_name)
+in_strat_long_fill = input.bool(true, "Fill?", group=strat_long_gr_name)
+//}
+
+// Strategy - Short {
+strat_short_gr_name = gr_dash_left + "Strategy Short" + gr_dash_right
+
+in_strat_short_entry_type = input.string(strat_entry_type_sw, "Entry type", [strat_entry_type_sw, strat_entry_type_break], group=strat_short_gr_name)
+in_strat_short_rev_en = input.bool(false, "Reversal", group=strat_short_gr_name)
+in_strat_short_entry_off_en = input.bool(true, "Entry offset [%]", inline="strat_short_entry_off", group=strat_short_gr_name)
+in_strat_short_entry_off = input.float(1, "", step=0.1, inline="strat_short_entry_off", group=strat_short_gr_name) * 0.01
+in_strat_short_tp_en = input.bool(true, "Take profit [%]", inline="strat_short_tp", group=strat_short_gr_name)
+in_strat_short_tp_per = input.float(15.0, "", inline="strat_short_tp", group=strat_short_gr_name) * 0.01
+in_strat_short_init_sl_off = input.float(0.1, "Initial SL offset [%]", step=0.1, group=strat_short_gr_name) * 0.01
+in_strat_short_move_to_be_en = input.bool(true, "Move to breakeven?", group=strat_short_gr_name)
+in_strat_short_sl_be_off = input.float(0.1, "Breakeven offset [%]", step=0.1, group=strat_short_gr_name) * 0.01
+in_strat_short_tsl_off_en = input.bool(true, "Trailing stop loss offset [%]", inline="strat_short_tsl", group=strat_short_gr_name)
+in_strat_short_tsl_off = input.float(0.1, "", step=0.1, inline="strat_short_tsl", group=strat_short_gr_name) * 0.01
+in_strat_short_opp_limit_en = input.bool(false, "Check if macro trend showing signs of reversal", group=strat_short_gr_name)
+in_strat_short_opp_limit_per = input.float(80, "Percentage for the limit order price calculation", step=0.1, group=strat_short_gr_name) * 0.01
+in_strat_short_pi_exit_en = input.bool(false, "Exit on Pi Cycle", group=strat_short_gr_name)
+in_strat_short_ep_col = input.color(color.gray, "EP", inline="strat_short_disp_col", group=strat_short_gr_name)
+in_strat_short_tp_col = input.color(color.green, "TP", inline="strat_short_disp_col", group=strat_short_gr_name)
+in_strat_short_sl_col = input.color(color.red, "SL", inline="strat_short_disp_col", group=strat_short_gr_name)
+in_strat_short_line_w = input.int(1, "Width", inline="strat_short_disp_col", group=strat_short_gr_name)
+in_strat_short_fill = input.bool(true, "Fill?", group=strat_short_gr_name)
+//}
+
+//}
+
+// Trend {
+
+// Trend - Long {
+trend_long_gr_name = gr_dash_left + "Trend Long" + gr_dash_right
+
+in_trend_long_bg_en = input.bool(false, "Color the background according to trend type?", inline="trend_long_type", group=trend_long_gr_name)
+in_trend_long_bg_bull_col = input.color(color.new(color.green, 85), "", inline="trend_long_type", group=trend_long_gr_name)
+in_trend_long_bg_bear_col = input.color(color.new(color.red, 85), "", inline="trend_long_type", group=trend_long_gr_name)
+in_trend_long_bg_unc_col = input.color(color.new(color.gray, 85), "", inline="trend_long_type", group=trend_long_gr_name)
+in_trend_long_show_break = input.bool(false, "Show swing breaks?", inline="trend_long_break", group=trend_long_gr_name)
+in_trend_long_break_bull_col = input.color(color.orange, "", inline="trend_long_break", group=trend_long_gr_name)
+in_trend_long_break_bear_col = input.color(color.blue, "", inline="trend_long_break", group=trend_long_gr_name)
+//}
+
+// Trend - Short {
+trend_short_gr_name = gr_dash_left + "Trend Short" + gr_dash_right
+
+in_trend_short_bg_en = input.bool(false, "Color the background according to trend type?", inline="trend_short_type", group=trend_short_gr_name)
+in_trend_short_bg_bull_col = input.color(color.new(color.green, 85), "", inline="trend_short_type", group=trend_short_gr_name)
+in_trend_short_bg_bear_col = input.color(color.new(color.red, 85), "", inline="trend_short_type", group=trend_short_gr_name)
+in_trend_short_bg_unc_col = input.color(color.new(color.gray, 85), "", inline="trend_short_type", group=trend_short_gr_name)
+in_trend_short_show_break = input.bool(false, "Show swing breaks?", inline="trend_short_break", group=trend_short_gr_name)
+in_trend_short_break_bull_col = input.color(color.orange, "", inline="trend_short_break", group=trend_short_gr_name)
+in_trend_short_break_bear_col = input.color(color.blue, "", inline="trend_short_break", group=trend_short_gr_name)
+//}
+
+//}
+
+// Zig Zag {
+
+// Zig Zag - Long {
+zz_long_gr_name = gr_dash_left + "Zig Zag - Long" + gr_dash_right
+
+in_zz_long_show_line = input.bool(true, "Show ZigZag line?", inline="zz_long_long_line", group=zz_long_gr_name)
+in_zz_long_line_style = input.string(line_style_solid, "", [line_style_solid, line_style_dotted, line_style_dashed], inline="zz_long_line", group=zz_long_gr_name)
+in_zz_long_line_w = input.int(2, "", inline="zz_long_line", group=zz_long_gr_name)
+in_zz_long_show_lbl = input.bool(true, "Show ZigZag label?", inline="zz_long_lbl", group=zz_long_gr_name)
+in_zz_long_lbl_size = input.string(lbl_size_normal, "", [lbl_size_tiny, lbl_size_small, lbl_size_normal, lbl_size_large], inline="zz_long_lbl", group=zz_long_gr_name)
+in_zz_long_bull_col = input.color(color.orange, "Color", inline="zz_long_col", group=zz_long_gr_name)
+in_zz_long_bear_col = input.color(color.blue, "", inline="zz_long_col", group=zz_long_gr_name)
+in_zz_long_repaint_line = input.bool(true, "Repaint line?", inline="zz_long_repaint", group=zz_long_gr_name)
+in_zz_long_repaint_line_style = input.string(line_style_dashed, "", [line_style_solid, line_style_dotted, line_style_dashed], inline="zz_long_repaint", group=zz_long_gr_name)
+in_zz_long_repaint_bull_col = input.color(color.white, "Color", inline="zz_long_repaint_col", group=zz_long_gr_name)
+in_zz_long_repaint_bear_col = input.color(color.gray, "", inline="zz_long_repaint_col", group=zz_long_gr_name)
+//}
+
+// Zig Zag - Short {
+zz_short_gr_name = gr_dash_left + "Zig Zag - Short" + gr_dash_right
+
+in_zz_short_show_line = input.bool(true, "Show ZigZag line?", inline="zz_short_short_line", group=zz_short_gr_name)
+in_zz_short_line_style = input.string(line_style_solid, "", [line_style_solid, line_style_dotted, line_style_dashed], inline="zz_short_line", group=zz_short_gr_name)
+in_zz_short_line_w = input.int(2, "", inline="zz_short_line", group=zz_short_gr_name)
+in_zz_short_show_lbl = input.bool(true, "Show ZigZag label?", inline="zz_short_lbl", group=zz_short_gr_name)
+in_zz_short_lbl_size = input.string(lbl_size_normal, "", [lbl_size_tiny, lbl_size_small, lbl_size_normal, lbl_size_large], inline="zz_short_lbl", group=zz_short_gr_name)
+in_zz_short_bull_col = input.color(color.orange, "Color", inline="zz_short_col", group=zz_short_gr_name)
+in_zz_short_bear_col = input.color(color.blue, "", inline="zz_short_col", group=zz_short_gr_name)
+in_zz_short_repaint_line = input.bool(true, "Repaint line?", inline="zz_short_repaint", group=zz_short_gr_name)
+in_zz_short_repaint_line_style = input.string(line_style_dashed, "", [line_style_solid, line_style_dotted, line_style_dashed], inline="zz_short_repaint", group=zz_short_gr_name)
+in_zz_short_repaint_bull_col = input.color(color.white, "Color", inline="zz_short_repaint_col", group=zz_short_gr_name)
+in_zz_short_repaint_bear_col = input.color(color.gray, "", inline="zz_short_repaint_col", group=zz_short_gr_name)
+//}
+
+//}
+
+// SMA {
+sma_gr_name = gr_dash_left + "SMA" + gr_dash_right
+in_sma_en = input.bool(true, "Enable SMA filter?", group=sma_gr_name)
+in_sma_src = input.source(close, "Source", group=sma_gr_name)
+in_sma_len = input.int(50, "Length", group=sma_gr_name)
+in_sma_offset_en = input.bool(true, "Offset [%]", inline="sma_offset", group=sma_gr_name)
+in_sma_offset = input.float(5.0, "", step=0.1, inline="sma_offset", group=sma_gr_name) * 0.01
+in_sma_line_show = input.bool(true, "Show SMA line?", inline="sma_line", group=sma_gr_name)
+in_sma_line_col = input.color(color.blue, "", inline="sma_line", group=sma_gr_name)
+in_sma_offset_line_show = input.bool(false, "Show SMA line with offset?", inline="sma_offset_line", group=sma_gr_name)
+in_sma_offset_line_col = input.color(color.blue, "", inline="sma_offset_line", group=sma_gr_name)
+//}
+
+// Time Settings {
+time_gr_name = gr_dash_left + "Time Settings" + gr_dash_right
+in_time_range_en = input.bool(false, "Limit backtest range?", group=time_gr_name)
+in_time_range_start = input.time(timestamp("01 Jan 2021 00:00 +0000"), "Start time", group=time_gr_name)
+in_time_range_end = input.time(timestamp("31 Dec 2031 00:00 +0000"), "End time", group=time_gr_name)
+
+in_time_sess_en = input.bool(false, "Limit trading hours?", group=time_gr_name)
+in_time_sess = input.session("0900-1700", "Session hours", group=time_gr_name)
+
+in_time_days_en = input.bool(false, "Limit trading days?", group=time_gr_name)
+in_time_days_mon = input.bool(true, "Mon", inline="time_days", group=time_gr_name)
+in_time_days_tue = input.bool(true, "Tue", inline="time_days", group=time_gr_name)
+in_time_days_wed = input.bool(true, "Wed", inline="time_days", group=time_gr_name)
+in_time_days_thu = input.bool(true, "Thu", inline="time_days", group=time_gr_name)
+in_time_days_fri = input.bool(true, "Fri", inline="time_days", group=time_gr_name)
+in_time_days_sat = input.bool(true, "Sat", inline="time_days", group=time_gr_name)
+in_time_days_sun = input.bool(true, "Sun", inline="time_days", group=time_gr_name)
+
+in_time_highlight = input.bool(false, "Highlight valid time zones?", inline="time_highlight", group=time_gr_name)
+in_time_highlight_col = input.color(color.new(color.blue, 85), "", inline="time_highlight", group=time_gr_name)
+//}
+
+//}
+
+// Variables {
+
+// Swing {
+var SW_UP_TREND = 1, var SW_DWN_TREND = -1
+var SW_LONG_MAX_CNT = in_sw_long_cnt
+var SW_LONG_MIN_CNT = in_sw_long_cnt * -1
+var SW_SHORT_MAX_CNT = in_sw_short_cnt
+var SW_SHORT_MIN_CNT = in_sw_short_cnt * -1
+
+var SWING_HH = 2
+var SWING_LH = 1
+var SWING_HL = -1
+var SWING_LL = -2
+//}
+
+// Trend {
+var TREND_UP_TREND = 1
+var TREND_UNCERTAIN_TREND = 0
+var TREND_DOWN_TREND = -1
+var TREND_INVALID = 2
+//}
+
+// Trade {
+type o_trade
+    m_init_done = false
+
+    sw_last_swing_type = 0
+    float sw_last_swing_price = na
+    sw_last_swing_bs = 0
+
+    sw_last_high_type = 0
+    sw_last_low_type = 0
+
+    sw_trend = 1
+    sw_cnt = 0
+
+    sw_old_trend = 1
+    sw_trend_mid_break = false
+
+    float sw_high = na  // This will track higher high of the trend
+    float sw_low = na   // This will track lower low of the trend
+    int sw_high_idx = na  // This will track higher high idx of the trend
+    int sw_low_idx = na   // This will track lower low idx of the trend
+    sw_was_high = false
+    sw_was_low = false
+
+    float sw_last_high = na
+    float sw_last_low = na
+
+    int sw_last_high_bs = 0
+    int sw_last_low_bs = 0
+
+    float sw_last_hh = na
+    float sw_last_lh = na
+    float sw_last_ll = na
+    float sw_last_hl = na
+
+    line zz_line = na
+    line zz_repaint_line = na
+    line line_h = na
+    line line_l = na
+//}
+
+//}
+
+// Functions {
+
+// Line {
+f_line_get_style(p_sty) =>
+    switch p_sty
+        line_style_solid => line.style_solid
+        line_style_dotted => line.style_dotted
+        line_style_dashed => line.style_dashed
+        => line.style_solid
+
+f_line_add(p_idx, p_val, p_last_idx, p_last_val, p_show, p_bull_col, p_bear_col, p_sty, p_width) =>
+    line l = na
+    
+    if (p_show)
+        c = (p_val > p_last_val) ? p_bull_col : p_bear_col
+        l := line.new(bar_index - p_last_idx, p_last_val, bar_index - p_idx, p_val, color=c, style=p_sty, width=p_width)
+
+f_line_add_sw_line(p_idx, p_val, is_high, p_show, p_h_col, p_l_col, p_sty, p_width) =>
+    if (p_show)
+        c = is_high ? p_h_col : p_l_col
+        line.new(bar_index - p_idx, p_val, bar_index, p_val, color=c, style=p_sty, width=p_width)
+//}
+
+// Label {
+f_lbl_get_size(p_size) =>
+    switch p_size
+        lbl_size_tiny => size.tiny
+        lbl_size_small => size.small
+        lbl_size_normal => size.normal
+        lbl_size_large => size.large
+        => size.normal
+
+f_lbl_add(p_idx, p_val, p_old_val, p_is_high, p_show, p_bull_col, p_bear_col, p_size) =>
+    label l = na
+    
+    if (p_show)
+        s = p_is_high ? (p_val > p_old_val) ? "HH" : "LH" : (p_val < p_old_val) ? "LL" : "HL"
+        c = p_is_high ? (p_val > p_old_val) ? p_bull_col : p_bear_col : (p_val < p_old_val) ? p_bear_col : p_bull_col
+        loc = p_is_high ? yloc.abovebar : yloc.belowbar
+    
+        l := label.new(bar_index - p_idx, p_val, s, yloc=loc, color=c, style=label.style_none, textcolor=c, size=p_size)
+//}
+
+// Strategy {
+f_strat_get_pos_size(p_method_type, p_price_type, p_value, p_entry_price, p_sl_price) =>
+    qty = 0.0
+
+    if (p_method_type == strat_pos_size_method_fixed)
+        if (p_price_type == strat_pos_size_price_quote)             // USD
+            qty := p_value / p_entry_price
+        else if (p_price_type == strat_pos_size_price_base)         // BTC
+            qty := p_value
+        else if (p_price_type == strat_pos_size_price_percentage)   // %
+            qty := (strategy.equity * (p_value * 0.01)) / p_entry_price
+    else if (p_method_type == strat_pos_size_method_dyn)
+        if (in_strat_pos_size_price_type == strat_pos_size_price_quote)             // USD
+            // Max Position $ [USD] = Trade Entry Price/((Trade Entry Price - Stop Loss)/Max Risk $)
+            qty_quote = (p_entry_price / ((math.abs(p_entry_price - p_sl_price)) / in_strat_pos_size_value))
+            qty := (qty_quote / p_entry_price)
+        else if (in_strat_pos_size_price_type == strat_pos_size_price_base)         // BTC
+            // Max Position BTC [BTC] = ((Trade Entry Price/((Trade Entry Price - Stop Loss)/(Max Risk Tokens Input (float) x Trade Entry Price)) / Trade Entry Price
+            qty := ((p_entry_price / ((math.abs(p_entry_price - p_sl_price)) / (in_strat_pos_size_value * p_entry_price))) / p_entry_price)
+        else if (in_strat_pos_size_price_type == strat_pos_size_price_percentage)   // %
+            // Max Position % [$] = Trade Entry Price/((Trade Entry Price - Initial Stop Loss)/(Portfolio Size * Risk %))
+            qty_quote = (p_entry_price / ((math.abs(p_entry_price - p_sl_price)) / (strategy.equity * (in_strat_pos_size_value * 0.01))))
+            qty := (qty_quote / p_entry_price)
+    
+    money_needed = (qty * p_entry_price)
+    qty := (money_needed > strategy.equity) ? (strategy.equity / p_entry_price) : qty
+    qty
+
+f_strat_update_initial_sl(p_is_long, p_sl_init, p_last_sw_type, p_last_sw_price, p_last_sw_bs, p_sl_offset) =>
+    new_sl_price = p_sl_init
+
+    if (p_is_long)
+        if ((p_last_sw_type == SWING_HL) or (p_last_sw_type == SWING_LL))
+            new_sl_price := p_last_sw_price
+        else
+            lowest_low = low
+
+            for i = p_last_sw_bs to 0
+                if (low[i] < lowest_low)
+                    lowest_low := low[i]
+            new_sl_price := lowest_low
+    else
+        if ((p_last_sw_type == SWING_LH) or (p_last_sw_type == SWING_HH))
+            new_sl_price := p_last_sw_price
+        else
+            highest_high = high
+
+            for i = p_last_sw_bs to 0
+                if (high[i] > highest_high)
+                    highest_high := high[i]
+            new_sl_price := highest_high
+
+    new_sl_price := p_is_long ? (new_sl_price * (1 - p_sl_offset)) : (new_sl_price * (1 + p_sl_offset))
+
+    new_sl_price
+//}
+
+// Swing {
+f_sw_update_trend(p_cnt, p_trend, p_max_cnt, p_min_cnt) =>
+    if (p_cnt >= p_max_cnt)
+        SW_UP_TREND
+    else if (p_cnt <= p_min_cnt)
+        SW_DWN_TREND
+    else
+        p_trend
+
+f_sw_inc_cnt(p_cnt, p_max_cnt) =>
+    new_cnt = p_cnt
+    
+    if (p_cnt < 0)
+        new_cnt := 1
+    else
+        if ((p_cnt + 1) > p_max_cnt)
+            new_cnt := p_max_cnt
+        else
+            new_cnt := p_cnt + 1
+    new_cnt
+    
+f_sw_dec_cnt(p_cnt, p_min_cnt) =>
+    new_cnt = p_cnt
+    
+    if (p_cnt > 0)
+        new_cnt := -1
+    else
+        if ((p_cnt - 1) < p_min_cnt)
+            new_cnt := p_min_cnt
+        else
+            new_cnt := p_cnt - 1
+    new_cnt
+//}
+
+// Trend {
+f_trend_update_trend_with_new_swing(p_last_high, p_last_low) =>
+    if ((p_last_high == SWING_LH) and (p_last_low == SWING_LL))
+        new_trend = TREND_DOWN_TREND
+    else if ((p_last_high == SWING_LH) and (p_last_low == SWING_HL))
+        new_trend = TREND_UNCERTAIN_TREND
+    else if ((p_last_high == SWING_HH) and (p_last_low == SWING_LL))
+        new_trend = TREND_UNCERTAIN_TREND
+    else if ((p_last_high == SWING_HH) and (p_last_low == SWING_HL))
+        new_trend = TREND_UP_TREND
+    else
+        new_trend = TREND_INVALID
+
+f_trend_update_trend_with_new_break(p_is_high_break, p_last_high, p_last_low, p_trend_type) =>
+    new_trend = p_trend_type
+
+    switch p_trend_type
+        TREND_UNCERTAIN_TREND =>
+            if (p_is_high_break and (p_last_low == SWING_HL))
+                new_trend := TREND_UP_TREND
+            else if (not p_is_high_break and (p_last_high == SWING_LH))
+                new_trend := TREND_DOWN_TREND
+        TREND_UP_TREND =>
+            if (not p_is_high_break and (p_last_high == SWING_HH))
+                new_trend := TREND_UNCERTAIN_TREND
+            else if (not p_is_high_break and (p_last_high == SWING_LH))
+                new_trend := TREND_DOWN_TREND
+        TREND_DOWN_TREND =>
+            if (p_is_high_break and (p_last_low == SWING_LL))
+                new_trend := TREND_UNCERTAIN_TREND
+            else if (p_is_high_break and (p_last_low == SWING_HL))
+                new_trend := TREND_UP_TREND
+    new_trend
+//}
+
+//}
+
+// Indicators {
+
+// Time {
+time_range_good = in_time_range_en ? (time >= in_time_range_start and time <= in_time_range_end) : true
+time_sess_good = in_time_sess_en ? time(timeframe.period, in_time_sess + ":1234567") : true
+
+time_days_str= ":"
+time_days_str := in_time_days_mon ? time_days_str + "2" : time_days_str
+time_days_str := in_time_days_tue ? time_days_str + "3" : time_days_str
+time_days_str := in_time_days_wed ? time_days_str + "4" : time_days_str
+time_days_str := in_time_days_thu ? time_days_str + "5" : time_days_str
+time_days_str := in_time_days_fri ? time_days_str + "6" : time_days_str
+time_days_str := in_time_days_sat ? time_days_str + "7" : time_days_str
+time_days_str := in_time_days_sun ? time_days_str + "1" : time_days_str
+time_days_good = in_time_days_en ? time(timeframe.period, "0000-0000" + time_days_str) : true
+
+time_highlight_zone = if (in_time_sess_en and in_time_days_en)
+    time_sess_good and time_days_good
+else if (in_time_sess_en and not in_time_days_en)
+    time_sess_good
+else if (not in_time_sess_en and in_time_days_en)
+    time_days_good
+else
+    false
+
+time_is_good = time_range_good and time_sess_good and time_days_good
+bgcolor(in_time_highlight and time_highlight_zone ? in_time_highlight_col : na, title="Valid Time Zone")
+//}
+
+// SMA {
+sma_val = ta.sma(in_sma_src, in_sma_len)
+sma_long_val = in_sma_offset_en ? (sma_val * (1 - in_sma_offset)) : sma_val
+sma_short_val = in_sma_offset_en ? (sma_val * (1 + in_sma_offset)) : sma_val
+
+plot(in_sma_en and in_sma_line_show ? sma_val : na, "SMA", in_sma_line_col)
+plot(in_sma_en and in_sma_offset_line_show ? sma_long_val : na, "SMA - Long Offset", in_sma_offset_line_col, 1, plot.style_circles)
+plot(in_sma_en and in_sma_offset_line_show ? sma_short_val : na, "SMA - Short Offset", in_sma_offset_line_col, 1, plot.style_circles)
+
+sma_long_cond = in_sma_en ? (close > sma_long_val) : true
+sma_short_cond = in_sma_en ? (close < sma_short_val) : true
+//}
+
+// Pi Cycle {
+pi_ema1 = ta.sma(open, 350)*2
+pi_ema2 = ta.sma(open, 111)
+pi_ema3 = ta.sma(close, 250)
+pi_ema4 = ta.sma(close, 550)
+
+pi_top = ta.crossover(pi_ema2, pi_ema1)
+pi_bot = ta.crossover(pi_ema4, pi_ema3)
+
+plotshape(in_strat_long_pi_exit_en and pi_top, "Pi Cycle - Top", shape.triangledown, location.abovebar, color.red, 0, "Pi Cycle\nTop", color.red)
+plotshape(in_strat_short_pi_exit_en and pi_bot, "Pi Cycle - Bottom", shape.triangleup, location.belowbar, color.green, 0, "Pi Cycle\nBottom", color.green)
+//}
+
+// Bar {
+bar_up = (high > high[1]) and (low >= low[1])
+bar_dwn = (high <= high[1]) and (low < low[1])
+bar_outside_up = (low < low[1]) and (high > high[1]) and (open > close)
+bar_outside_dwn = (low < low[1]) and (high > high[1]) and (open < close)
+
+plotshape(in_sw_mark_bars and bar_up, "Up Bar", shape.triangleup, location.belowbar, in_sw_mark_bull_col)
+plotshape(in_sw_mark_bars and bar_dwn, "Down Bar", shape.triangledown, location.abovebar, in_sw_mark_bear_col)
+plotshape(in_sw_mark_bars and bar_outside_dwn, "Outside Down Bar", shape.diamond, location.belowbar, in_sw_mark_bull_col)
+plotshape(in_sw_mark_bars and bar_outside_up, "Outside Up Bar", shape.diamond, location.abovebar, in_sw_mark_bear_col)
+//}
+
+// Swing {
+
+// Swing Long {
+var trade_long_obj = o_trade.new()
+
+var SW_LONG_LINE_STYLE = f_line_get_style(in_sw_long_line_style)
+
+var ZZ_LONG_LINE_STYLE = f_line_get_style(in_zz_long_line_style)
+var ZZ_LONG_REPAINT_LINE_STYLE = f_line_get_style(in_zz_long_repaint_line_style)
+var ZZ_LONG_REPAINT_LBL_SIZE = f_lbl_get_size(in_zz_long_lbl_size)
+
+if (not trade_long_obj.m_init_done)
+    trade_long_obj.zz_repaint_line := line.new(na, na, na, na, style=ZZ_LONG_REPAINT_LINE_STYLE, width=in_zz_long_line_w)
+    trade_long_obj.line_h := line.new(na, na, na, na, color=in_sw_long_h_price_col, style=SW_LONG_LINE_STYLE, width=in_sw_long_line_w)
+    trade_long_obj.line_l := line.new(na, na, na, na, color=in_sw_long_l_price_col, style=SW_LONG_LINE_STYLE, width=in_sw_long_line_w)
+    trade_long_obj.m_init_done := true
+
+trade_long_obj.sw_old_trend := trade_long_obj.sw_trend
+trade_long_obj.sw_trend_mid_break := false
+
+// +1
+if (bar_up)
+    trade_long_obj.sw_cnt := f_sw_inc_cnt(trade_long_obj.sw_cnt, SW_LONG_MAX_CNT)
+    trade_long_obj.sw_trend := f_sw_update_trend(trade_long_obj.sw_cnt, trade_long_obj.sw_trend, SW_LONG_MAX_CNT, SW_LONG_MIN_CNT)
+// -1
+else if (bar_dwn)
+    trade_long_obj.sw_cnt := f_sw_dec_cnt(trade_long_obj.sw_cnt, SW_LONG_MIN_CNT)
+    trade_long_obj.sw_trend := f_sw_update_trend(trade_long_obj.sw_cnt, trade_long_obj.sw_trend, SW_LONG_MAX_CNT, SW_LONG_MIN_CNT)
+
+// +1 and then -1
+else if (bar_outside_up)
+    trade_long_obj.sw_cnt := f_sw_inc_cnt(trade_long_obj.sw_cnt, SW_LONG_MAX_CNT)
+    trade_long_obj.sw_trend := f_sw_update_trend(trade_long_obj.sw_cnt, trade_long_obj.sw_trend, SW_LONG_MAX_CNT, SW_LONG_MIN_CNT)
+    
+    sw_long_old_trend_mid = trade_long_obj.sw_trend
+    trade_long_obj.sw_cnt := f_sw_dec_cnt(trade_long_obj.sw_cnt, SW_LONG_MIN_CNT)
+    trade_long_obj.sw_trend := f_sw_update_trend(trade_long_obj.sw_cnt, trade_long_obj.sw_trend, SW_LONG_MAX_CNT, SW_LONG_MIN_CNT)
+    trade_long_obj.sw_trend_mid_break := (trade_long_obj.sw_old_trend != sw_long_old_trend_mid) and (trade_long_obj.sw_old_trend == trade_long_obj.sw_trend)
+
+// -1 and then +1
+else if (bar_outside_dwn)
+    trade_long_obj.sw_cnt := f_sw_dec_cnt(trade_long_obj.sw_cnt, SW_LONG_MIN_CNT)
+    trade_long_obj.sw_trend := f_sw_update_trend(trade_long_obj.sw_cnt, trade_long_obj.sw_trend, SW_LONG_MAX_CNT, SW_LONG_MIN_CNT)
+    
+    sw_long_old_trend_mid = trade_long_obj.sw_trend
+    trade_long_obj.sw_cnt := f_sw_inc_cnt(trade_long_obj.sw_cnt, SW_LONG_MAX_CNT)
+    trade_long_obj.sw_trend := f_sw_update_trend(trade_long_obj.sw_cnt, trade_long_obj.sw_trend, SW_LONG_MAX_CNT, SW_LONG_MIN_CNT)
+    trade_long_obj.sw_trend_mid_break := (trade_long_obj.sw_old_trend != sw_long_old_trend_mid) and (trade_long_obj.sw_old_trend == trade_long_obj.sw_trend)
+
+
+var sw_long_high_break_happened = false
+var sw_long_low_break_happened = false
+
+
+sw_long_is_uptrend = (trade_long_obj.sw_trend == SW_UP_TREND)
+sw_long_is_downtrend = (trade_long_obj.sw_trend == SW_DWN_TREND)
+sw_long_is_new_uptrend = (not sw_long_is_uptrend[1] and sw_long_is_uptrend)
+sw_long_is_new_downtrend = (not sw_long_is_downtrend[1] and sw_long_is_downtrend)
+
+trade_long_obj.sw_last_high_bs := trade_long_obj.sw_last_high_bs + 1
+trade_long_obj.sw_last_low_bs := trade_long_obj.sw_last_low_bs + 1
+trade_long_obj.sw_last_swing_bs := trade_long_obj.sw_last_swing_bs + 1
+
+sw_long_is_new_hh = false
+sw_long_is_new_lh = false
+sw_long_is_new_ll = false
+sw_long_is_new_hl = false
+
+if (in_sw_long_show_hl_price)
+    line.set_x2(trade_long_obj.line_h, bar_index)
+    line.set_x2(trade_long_obj.line_l, bar_index)
+
+if (sw_long_is_uptrend)
+    if (sw_long_is_new_uptrend)
+        // Check if the very first bar of the new up trend is an outside bar down
+        // In this case we will do a -1 first, that will be the continuation of the previous downtrend
+        // Therefore, at the beginning, we should check if this first bar makes a new low (continuation) and reset the variables
+        if (bar_outside_dwn and sw_long_is_downtrend[1] and (low < trade_long_obj.sw_low))
+            trade_long_obj.sw_last_low_bs := 0
+            trade_long_obj.sw_low := low
+            trade_long_obj.sw_low_idx := bar_index
+        f_lbl_add(trade_long_obj.sw_last_low_bs, trade_long_obj.sw_low, trade_long_obj.sw_last_low, false, in_zz_long_show_lbl, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_REPAINT_LBL_SIZE)
+        trade_long_obj.zz_line := f_line_add(trade_long_obj.sw_last_low_bs, trade_long_obj.sw_low, trade_long_obj.sw_last_high_bs, trade_long_obj.sw_high, in_zz_long_show_line, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_LINE_STYLE, in_zz_long_line_w)
+        trade_long_obj.line_l := f_line_add_sw_line(trade_long_obj.sw_last_low_bs, trade_long_obj.sw_low, false, in_sw_long_show_hl_price, in_sw_long_h_price_col, in_sw_long_l_price_col, SW_LONG_LINE_STYLE, in_sw_long_line_w)
+        trade_long_obj.sw_was_high := false
+        trade_long_obj.sw_was_low := true
+        
+        trade_long_obj.sw_last_ll := (trade_long_obj.sw_low < trade_long_obj.sw_last_low) ? trade_long_obj.sw_low : trade_long_obj.sw_last_ll
+        trade_long_obj.sw_last_hl := (trade_long_obj.sw_low < trade_long_obj.sw_last_low) ? trade_long_obj.sw_last_hl : trade_long_obj.sw_low
+
+        sw_long_is_new_ll := (trade_long_obj.sw_low < trade_long_obj.sw_last_low)
+        sw_long_is_new_hl := (trade_long_obj.sw_low >= trade_long_obj.sw_last_low)
+        
+        trade_long_obj.sw_last_low := trade_long_obj.sw_low
+        trade_long_obj.sw_last_high_bs := 0
+        trade_long_obj.sw_high := high
+        trade_long_obj.sw_high_idx := bar_index
+        sw_long_low_break_happened := false
+    else if (trade_long_obj.sw_trend_mid_break)
+        f_lbl_add(trade_long_obj.sw_last_high_bs, trade_long_obj.sw_high, trade_long_obj.sw_last_high, true, in_zz_long_show_lbl, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_REPAINT_LBL_SIZE)
+        trade_long_obj.zz_line := f_line_add(trade_long_obj.sw_last_high_bs, trade_long_obj.sw_high, trade_long_obj.sw_last_low_bs, trade_long_obj.sw_last_low, in_zz_long_show_line, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_LINE_STYLE, in_zz_long_line_w)
+        trade_long_obj.line_h := f_line_add_sw_line(trade_long_obj.sw_last_high_bs, trade_long_obj.sw_high, true, in_sw_long_show_hl_price, in_sw_long_h_price_col, in_sw_long_l_price_col, SW_LONG_LINE_STYLE, in_sw_long_line_w)
+        trade_long_obj.sw_was_high := true
+        trade_long_obj.sw_was_low := false
+        
+        trade_long_obj.sw_last_hh := (trade_long_obj.sw_high > trade_long_obj.sw_last_high) ? trade_long_obj.sw_high : trade_long_obj.sw_last_hh
+        trade_long_obj.sw_last_lh := (trade_long_obj.sw_high > trade_long_obj.sw_last_high) ? trade_long_obj.sw_last_lh : trade_long_obj.sw_high
+
+        sw_long_is_new_hh := (trade_long_obj.sw_high > trade_long_obj.sw_last_high)
+        sw_long_is_new_lh := (trade_long_obj.sw_high <= trade_long_obj.sw_last_high)
+        
+        f_lbl_add(0, low, trade_long_obj.sw_last_low, false, in_zz_long_show_lbl, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_REPAINT_LBL_SIZE)
+        trade_long_obj.zz_line := f_line_add(0, low, trade_long_obj.sw_last_high_bs, trade_long_obj.sw_high, in_zz_long_show_line, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_LINE_STYLE, in_zz_long_line_w)
+        trade_long_obj.line_l := f_line_add_sw_line(0, low, false, in_sw_long_show_hl_price, in_sw_long_h_price_col, in_sw_long_l_price_col, SW_LONG_LINE_STYLE, in_sw_long_line_w)
+        trade_long_obj.sw_was_high := false
+        trade_long_obj.sw_was_low := true
+        
+        trade_long_obj.sw_last_ll := (low < trade_long_obj.sw_last_low) ? low : trade_long_obj.sw_last_ll
+        trade_long_obj.sw_last_hl := (low < trade_long_obj.sw_last_low) ? trade_long_obj.sw_last_hl : low
+
+        sw_long_is_new_ll := (low < trade_long_obj.sw_last_low)
+        sw_long_is_new_hl := (low >= trade_long_obj.sw_last_low)
+        
+        trade_long_obj.sw_last_high := trade_long_obj.sw_high
+        trade_long_obj.sw_last_high_bs := 0
+        trade_long_obj.sw_high := high
+        trade_long_obj.sw_high_idx := bar_index
+        trade_long_obj.sw_last_low := low
+        trade_long_obj.sw_last_low_bs := 0
+        trade_long_obj.sw_low := low
+        trade_long_obj.sw_low_idx := bar_index
+    else
+        if (high > trade_long_obj.sw_high)
+            trade_long_obj.sw_last_high_bs := 0
+            trade_long_obj.sw_high := high
+            trade_long_obj.sw_high_idx := bar_index
+
+if (sw_long_is_downtrend)
+    if (sw_long_is_new_downtrend)
+        // Check if the very first bar of the new down trend is an outside bar up
+        // In this case we will do a +1 first, that will be the continuation of the previous uptrend
+        // Therefore, at the beginning, we should check if this first bar makes a new high (continuation) and reset the variables
+        if (bar_outside_up and sw_long_is_uptrend[1] and (high > trade_long_obj.sw_high))
+            trade_long_obj.sw_last_high_bs := 0
+            trade_long_obj.sw_high := high
+            trade_long_obj.sw_high_idx := bar_index
+        f_lbl_add(trade_long_obj.sw_last_high_bs, trade_long_obj.sw_high, trade_long_obj.sw_last_high, true, in_zz_long_show_lbl, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_REPAINT_LBL_SIZE)
+        trade_long_obj.zz_line := f_line_add(trade_long_obj.sw_last_high_bs, trade_long_obj.sw_high, trade_long_obj.sw_last_low_bs, trade_long_obj.sw_low, in_zz_long_show_line, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_LINE_STYLE, in_zz_long_line_w)
+        trade_long_obj.line_h := f_line_add_sw_line(trade_long_obj.sw_last_high_bs, trade_long_obj.sw_high, true, in_sw_long_show_hl_price, in_sw_long_h_price_col, in_sw_long_l_price_col, SW_LONG_LINE_STYLE, in_sw_long_line_w)
+        trade_long_obj.sw_was_high := true
+        trade_long_obj.sw_was_low := false
+        
+        trade_long_obj.sw_last_hh := (trade_long_obj.sw_high > trade_long_obj.sw_last_high) ? trade_long_obj.sw_high : trade_long_obj.sw_last_hh
+        trade_long_obj.sw_last_lh := (trade_long_obj.sw_high > trade_long_obj.sw_last_high) ? trade_long_obj.sw_last_lh : trade_long_obj.sw_high
+
+        sw_long_is_new_hh := (trade_long_obj.sw_high > trade_long_obj.sw_last_high)
+        sw_long_is_new_lh := (trade_long_obj.sw_high <= trade_long_obj.sw_last_high)
+        
+        trade_long_obj.sw_last_high := trade_long_obj.sw_high
+        trade_long_obj.sw_last_low_bs := 0
+        trade_long_obj.sw_low := low
+        trade_long_obj.sw_low_idx := bar_index
+        sw_long_high_break_happened := false
+    else if (trade_long_obj.sw_trend_mid_break)
+        f_lbl_add(trade_long_obj.sw_last_low_bs, trade_long_obj.sw_low, trade_long_obj.sw_last_low, false, in_zz_long_show_lbl, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_REPAINT_LBL_SIZE)
+        trade_long_obj.zz_line := f_line_add(trade_long_obj.sw_last_low_bs, trade_long_obj.sw_low, trade_long_obj.sw_last_high_bs, trade_long_obj.sw_last_high, in_zz_long_show_line, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_LINE_STYLE, in_zz_long_line_w)
+        trade_long_obj.line_l := f_line_add_sw_line(trade_long_obj.sw_last_low_bs, trade_long_obj.sw_low, false, in_sw_long_show_hl_price, in_sw_long_h_price_col, in_sw_long_l_price_col, SW_LONG_LINE_STYLE, in_sw_long_line_w)
+        trade_long_obj.sw_was_high := false
+        trade_long_obj.sw_was_low := true
+        
+        trade_long_obj.sw_last_ll := (trade_long_obj.sw_low < trade_long_obj.sw_last_low) ? trade_long_obj.sw_low : trade_long_obj.sw_last_ll
+        trade_long_obj.sw_last_hl := (trade_long_obj.sw_low < trade_long_obj.sw_last_low) ? trade_long_obj.sw_last_hl : trade_long_obj.sw_low
+
+        sw_long_is_new_ll := (trade_long_obj.sw_low < trade_long_obj.sw_last_low)
+        sw_long_is_new_hl := (trade_long_obj.sw_low >= trade_long_obj.sw_last_low)
+        
+        f_lbl_add(0, high, trade_long_obj.sw_last_high, true, in_zz_long_show_lbl, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_REPAINT_LBL_SIZE)
+        trade_long_obj.zz_line := f_line_add(0, high, trade_long_obj.sw_last_low_bs, trade_long_obj.sw_low, in_zz_long_show_line, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_LINE_STYLE, in_zz_long_line_w)
+        trade_long_obj.line_h := f_line_add_sw_line(0, high, true, in_sw_long_show_hl_price, in_sw_long_h_price_col, in_sw_long_l_price_col, SW_LONG_LINE_STYLE, in_sw_long_line_w)
+        trade_long_obj.sw_was_high := true
+        trade_long_obj.sw_was_low := false
+        
+        trade_long_obj.sw_last_hh := (high > trade_long_obj.sw_last_high) ? high : trade_long_obj.sw_last_hh
+        trade_long_obj.sw_last_lh := (high > trade_long_obj.sw_last_high) ? trade_long_obj.sw_last_lh : high
+
+        sw_long_is_new_hh := (high > trade_long_obj.sw_last_high)
+        sw_long_is_new_lh := (high <= trade_long_obj.sw_last_high)
+        
+        trade_long_obj.sw_last_low := trade_long_obj.sw_low
+        trade_long_obj.sw_last_low_bs := 0
+        trade_long_obj.sw_low := low
+        trade_long_obj.sw_low_idx := bar_index
+        trade_long_obj.sw_last_high := high
+        trade_long_obj.sw_last_high_bs := 0
+        trade_long_obj.sw_high := high
+        trade_long_obj.sw_high_idx := bar_index
+    else
+        if (low < trade_long_obj.sw_low)
+            trade_long_obj.sw_last_low_bs := 0
+            trade_long_obj.sw_low := low
+            trade_long_obj.sw_low_idx := bar_index
+
+// Check for swing break
+sw_long_is_high_break = (trade_long_obj.sw_trend == SW_DWN_TREND) and not sw_long_high_break_happened and (high > trade_long_obj.sw_last_high)
+sw_long_is_low_break = (trade_long_obj.sw_trend == SW_UP_TREND) and not sw_long_low_break_happened and (low < trade_long_obj.sw_last_low)
+
+// New uptrend
+if sw_long_is_high_break
+    sw_long_is_uptrend := true
+    trade_long_obj.sw_trend := SW_UP_TREND
+    trade_long_obj.sw_cnt := SW_LONG_MAX_CNT
+    sw_long_high_break_happened := true
+    
+    f_lbl_add(trade_long_obj.sw_last_low_bs, trade_long_obj.sw_low, trade_long_obj.sw_last_low, false, in_zz_long_show_lbl, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_REPAINT_LBL_SIZE)
+    trade_long_obj.zz_line := f_line_add(trade_long_obj.sw_last_low_bs, trade_long_obj.sw_low, trade_long_obj.sw_last_high_bs, trade_long_obj.sw_high, in_zz_long_show_line, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_LINE_STYLE, in_zz_long_line_w)
+    trade_long_obj.line_l := f_line_add_sw_line(trade_long_obj.sw_last_low_bs, trade_long_obj.sw_low, false, in_sw_long_show_hl_price, in_sw_long_h_price_col, in_sw_long_l_price_col, SW_LONG_LINE_STYLE, in_sw_long_line_w)
+    trade_long_obj.sw_was_high := false
+    trade_long_obj.sw_was_low := true
+        
+    trade_long_obj.sw_last_ll := (trade_long_obj.sw_low < trade_long_obj.sw_last_low) ? trade_long_obj.sw_low : trade_long_obj.sw_last_ll
+    trade_long_obj.sw_last_hl := (trade_long_obj.sw_low < trade_long_obj.sw_last_low) ? trade_long_obj.sw_last_hl : trade_long_obj.sw_low
+
+    sw_long_is_new_ll := (trade_long_obj.sw_low < trade_long_obj.sw_last_low)
+    sw_long_is_new_hl := (trade_long_obj.sw_low >= trade_long_obj.sw_last_low)
+    
+    trade_long_obj.sw_last_low := trade_long_obj.sw_low
+    trade_long_obj.sw_last_high_bs := 0
+    trade_long_obj.sw_high := high
+    trade_long_obj.sw_high_idx := bar_index
+
+// New downtrnd
+if sw_long_is_low_break
+    sw_long_is_downtrend := true
+    trade_long_obj.sw_trend := SW_DWN_TREND
+    trade_long_obj.sw_cnt := SW_LONG_MIN_CNT
+    sw_long_low_break_happened := true
+    
+    f_lbl_add(trade_long_obj.sw_last_high_bs, trade_long_obj.sw_high, trade_long_obj.sw_last_high, true, in_zz_long_show_lbl, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_REPAINT_LBL_SIZE)
+    trade_long_obj.zz_line := f_line_add(trade_long_obj.sw_last_high_bs, trade_long_obj.sw_high, trade_long_obj.sw_last_low_bs, trade_long_obj.sw_low, in_zz_long_show_line, in_zz_long_bull_col, in_zz_long_bear_col, ZZ_LONG_LINE_STYLE, in_zz_long_line_w)
+    trade_long_obj.line_h := f_line_add_sw_line(trade_long_obj.sw_last_high_bs, trade_long_obj.sw_high, true, in_sw_long_show_hl_price, in_sw_long_h_price_col, in_sw_long_l_price_col, SW_LONG_LINE_STYLE, in_sw_long_line_w)
+    trade_long_obj.sw_was_high := true
+    trade_long_obj.sw_was_low := false
+        
+    trade_long_obj.sw_last_hh := (trade_long_obj.sw_high > trade_long_obj.sw_last_high) ? trade_long_obj.sw_high : trade_long_obj.sw_last_hh
+    trade_long_obj.sw_last_lh := (trade_long_obj.sw_high > trade_long_obj.sw_last_high) ? trade_long_obj.sw_last_lh : trade_long_obj.sw_high
+
+    sw_long_is_new_hh := (trade_long_obj.sw_high > trade_long_obj.sw_last_high)
+    sw_long_is_new_lh := (trade_long_obj.sw_high <= trade_long_obj.sw_last_high)
+        
+    trade_long_obj.sw_last_high := trade_long_obj.sw_high
+    trade_long_obj.sw_last_low_bs := 0
+    trade_long_obj.sw_low := low
+    trade_long_obj.sw_low_idx := bar_index
+
+sw_long_is_new_pvt = sw_long_is_new_hh or sw_long_is_new_lh or sw_long_is_new_ll or sw_long_is_new_hl
+sw_long_is_new_high_pvt = sw_long_is_new_hh or sw_long_is_new_lh
+sw_long_is_new_low_pvt = sw_long_is_new_ll or sw_long_is_new_hl
+
+if (sw_long_is_new_hh)
+    trade_long_obj.sw_last_high_type := SWING_HH
+    trade_long_obj.sw_last_swing_type := SWING_HH
+    trade_long_obj.sw_last_swing_price := trade_long_obj.sw_last_high
+    trade_long_obj.sw_last_swing_bs := trade_long_obj.sw_last_high_bs
+if (sw_long_is_new_lh)
+    trade_long_obj.sw_last_high_type := SWING_LH
+    trade_long_obj.sw_last_swing_type := SWING_LH
+    trade_long_obj.sw_last_swing_price := trade_long_obj.sw_last_high
+    trade_long_obj.sw_last_swing_bs := trade_long_obj.sw_last_high_bs
+if (sw_long_is_new_ll)
+    trade_long_obj.sw_last_low_type := SWING_LL
+    trade_long_obj.sw_last_swing_type := SWING_LL
+    trade_long_obj.sw_last_swing_price := trade_long_obj.sw_last_low
+    trade_long_obj.sw_last_swing_bs := trade_long_obj.sw_last_low_bs
+if (sw_long_is_new_hl)
+    trade_long_obj.sw_last_low_type := SWING_HL
+    trade_long_obj.sw_last_swing_type := SWING_HL
+    trade_long_obj.sw_last_swing_price := trade_long_obj.sw_last_low
+    trade_long_obj.sw_last_swing_bs := trade_long_obj.sw_last_low_bs
+
+zz_long_x_start = bar_index - (math.max(trade_long_obj.sw_last_low_bs, trade_long_obj.sw_last_high_bs))                // line.get_x2(zz_line)
+zz_long_y_start = (trade_long_obj.sw_last_low_bs < trade_long_obj.sw_last_high_bs) ? trade_long_obj.sw_last_high : trade_long_obj.sw_last_low        // line.get_y2(zz_line)
+zz_long_y_pvt_price = (trade_long_obj.sw_last_low_bs < trade_long_obj.sw_last_high_bs) ? trade_long_obj.sw_last_low : trade_long_obj.sw_last_high    // line.get_y1(zz_line)
+
+var sw_long_is_ll_coming = false
+var sw_long_is_hh_coming = false
+
+sw_long_is_ll_coming := if (sw_long_is_new_uptrend)
+    false
+else
+    if (not sw_long_is_ll_coming)
+        if (sw_long_is_new_pvt)
+            if (trade_long_obj.sw_was_high)
+                (low < zz_long_y_pvt_price)
+            else
+                sw_long_is_ll_coming
+        else
+            if (trade_long_obj.sw_was_high)
+                (low < zz_long_y_pvt_price)
+            else
+                sw_long_is_ll_coming
+    else
+        sw_long_is_ll_coming
+
+sw_long_is_hh_coming := if (sw_long_is_new_downtrend)
+    false
+else
+    if (not sw_long_is_hh_coming)
+        if (sw_long_is_new_pvt)
+            if (trade_long_obj.sw_was_low)
+                (high > zz_long_y_pvt_price)
+            else
+                sw_long_is_hh_coming
+        else
+            if (trade_long_obj.sw_was_low)
+                (high > zz_long_y_pvt_price)
+            else
+                sw_long_is_hh_coming
+    else
+        sw_long_is_hh_coming
+
+// Repaint {
+if (in_zz_long_repaint_line)
+    float zz_rpnt_y = na
+    color zz_rpnt_col = na
+    zz_update_repaint = false
+
+    if (sw_long_is_new_pvt)
+        if (trade_long_obj.sw_was_high)            // Now looking for lows
+            zz_rpnt_y := low
+            zz_rpnt_col := in_zz_long_repaint_bear_col
+        else                        // Now looking for highs
+            zz_rpnt_y := high
+            zz_rpnt_col := in_zz_long_repaint_bull_col
+        
+            line.set_x1(trade_long_obj.zz_repaint_line, zz_long_x_start)
+            line.set_y1(trade_long_obj.zz_repaint_line, zz_long_y_start)
+            line.set_x2(trade_long_obj.zz_repaint_line, bar_index)
+            line.set_y2(trade_long_obj.zz_repaint_line, zz_rpnt_y)
+            line.set_color(trade_long_obj.zz_repaint_line, zz_rpnt_col)
+    else                            // Update x2 and y2
+        if (trade_long_obj.sw_was_high)            // Now looking for lows
+            zz_rpnt_y := low
+            zz_rpnt_col := in_zz_long_repaint_bear_col
+            zz_update_repaint := trade_long_obj.sw_low_idx != trade_long_obj.sw_low_idx[1]
+        else                        // Now looking for highs
+            zz_rpnt_y := high
+            zz_rpnt_col := in_zz_long_repaint_bull_col
+            zz_update_repaint := trade_long_obj.sw_high_idx != trade_long_obj.sw_high_idx[1]
+
+        if (zz_update_repaint)
+            if (not na(trade_long_obj.zz_repaint_line))
+                line.set_x1(trade_long_obj.zz_repaint_line, zz_long_x_start)
+                line.set_y1(trade_long_obj.zz_repaint_line, zz_long_y_start)
+                line.set_x2(trade_long_obj.zz_repaint_line, bar_index)
+                line.set_y2(trade_long_obj.zz_repaint_line, zz_rpnt_y)
+                line.set_color(trade_long_obj.zz_repaint_line, zz_rpnt_col)
+//}
+
+plotchar(trade_long_obj.sw_cnt, "Swing Count - Long", "", color=color.white)
+//}
+
+// Swing Short {
+var trade_short_obj = o_trade.new()
+
+var SW_SHORT_LINE_STYLE = f_line_get_style(in_sw_short_line_style)
+
+var ZZ_SHORT_LINE_STYLE = f_line_get_style(in_zz_short_line_style)
+var ZZ_SHORT_REPAINT_LINE_STYLE = f_line_get_style(in_zz_short_repaint_line_style)
+var ZZ_SHORT_REPAINT_LBL_SIZE = f_lbl_get_size(in_zz_short_lbl_size)
+
+if (not trade_short_obj.m_init_done)
+    trade_short_obj.zz_repaint_line := line.new(na, na, na, na, style=ZZ_SHORT_REPAINT_LINE_STYLE, width=in_zz_short_line_w)
+    trade_short_obj.line_h := line.new(na, na, na, na, color=in_sw_short_h_price_col, style=SW_SHORT_LINE_STYLE, width=in_sw_short_line_w)
+    trade_short_obj.line_l := line.new(na, na, na, na, color=in_sw_short_l_price_col, style=SW_SHORT_LINE_STYLE, width=in_sw_short_line_w)
+    trade_short_obj.m_init_done := true
+
+trade_short_obj.sw_old_trend := trade_short_obj.sw_trend
+trade_short_obj.sw_trend_mid_break := false
+
+// +1
+if (bar_up)
+    trade_short_obj.sw_cnt := f_sw_inc_cnt(trade_short_obj.sw_cnt, SW_SHORT_MAX_CNT)
+    trade_short_obj.sw_trend := f_sw_update_trend(trade_short_obj.sw_cnt, trade_short_obj.sw_trend, SW_SHORT_MAX_CNT, SW_SHORT_MIN_CNT)
+// -1
+else if (bar_dwn)
+    trade_short_obj.sw_cnt := f_sw_dec_cnt(trade_short_obj.sw_cnt, SW_SHORT_MIN_CNT)
+    trade_short_obj.sw_trend := f_sw_update_trend(trade_short_obj.sw_cnt, trade_short_obj.sw_trend, SW_SHORT_MAX_CNT, SW_SHORT_MIN_CNT)
+
+// +1 and then -1
+else if (bar_outside_up)
+    trade_short_obj.sw_cnt := f_sw_inc_cnt(trade_short_obj.sw_cnt, SW_SHORT_MAX_CNT)
+    trade_short_obj.sw_trend := f_sw_update_trend(trade_short_obj.sw_cnt, trade_short_obj.sw_trend, SW_SHORT_MAX_CNT, SW_SHORT_MIN_CNT)
+    
+    sw_short_old_trend_mid = trade_short_obj.sw_trend
+    trade_short_obj.sw_cnt := f_sw_dec_cnt(trade_short_obj.sw_cnt, SW_SHORT_MIN_CNT)
+    trade_short_obj.sw_trend := f_sw_update_trend(trade_short_obj.sw_cnt, trade_short_obj.sw_trend, SW_SHORT_MAX_CNT, SW_SHORT_MIN_CNT)
+    trade_short_obj.sw_trend_mid_break := (trade_short_obj.sw_old_trend != sw_short_old_trend_mid) and (trade_short_obj.sw_old_trend == trade_short_obj.sw_trend)
+
+// -1 and then +1
+else if (bar_outside_dwn)
+    trade_short_obj.sw_cnt := f_sw_dec_cnt(trade_short_obj.sw_cnt, SW_SHORT_MIN_CNT)
+    trade_short_obj.sw_trend := f_sw_update_trend(trade_short_obj.sw_cnt, trade_short_obj.sw_trend, SW_SHORT_MAX_CNT, SW_SHORT_MIN_CNT)
+    
+    sw_short_old_trend_mid = trade_short_obj.sw_trend
+    trade_short_obj.sw_cnt := f_sw_inc_cnt(trade_short_obj.sw_cnt, SW_SHORT_MAX_CNT)
+    trade_short_obj.sw_trend := f_sw_update_trend(trade_short_obj.sw_cnt, trade_short_obj.sw_trend, SW_SHORT_MAX_CNT, SW_SHORT_MIN_CNT)
+    trade_short_obj.sw_trend_mid_break := (trade_short_obj.sw_old_trend != sw_short_old_trend_mid) and (trade_short_obj.sw_old_trend == trade_short_obj.sw_trend)
+
+
+var sw_short_high_break_happened = false
+var sw_short_low_break_happened = false
+
+
+sw_short_is_uptrend = (trade_short_obj.sw_trend == SW_UP_TREND)
+sw_short_is_downtrend = (trade_short_obj.sw_trend == SW_DWN_TREND)
+sw_short_is_new_uptrend = (not sw_short_is_uptrend[1] and sw_short_is_uptrend)
+sw_short_is_new_downtrend = (not sw_short_is_downtrend[1] and sw_short_is_downtrend)
+
+trade_short_obj.sw_last_high_bs := trade_short_obj.sw_last_high_bs + 1
+trade_short_obj.sw_last_low_bs := trade_short_obj.sw_last_low_bs + 1
+trade_short_obj.sw_last_swing_bs := trade_short_obj.sw_last_swing_bs + 1
+
+sw_short_is_new_hh = false
+sw_short_is_new_lh = false
+sw_short_is_new_ll = false
+sw_short_is_new_hl = false
+
+if (in_sw_short_show_hl_price)
+    line.set_x2(trade_short_obj.line_h, bar_index)
+    line.set_x2(trade_short_obj.line_l, bar_index)
+
+if (sw_short_is_uptrend)
+    if (sw_short_is_new_uptrend)
+        // Check if the very first bar of the new up trend is an outside bar down
+        // In this case we will do a -1 first, that will be the continuation of the previous downtrend
+        // Therefore, at the beginning, we should check if this first bar makes a new low (continuation) and reset the variables
+        if (bar_outside_dwn and sw_short_is_downtrend[1] and (low < trade_short_obj.sw_low))
+            trade_short_obj.sw_last_low_bs := 0
+            trade_short_obj.sw_low := low
+            trade_short_obj.sw_low_idx := bar_index
+        f_lbl_add(trade_short_obj.sw_last_low_bs, trade_short_obj.sw_low, trade_short_obj.sw_last_low, false, in_zz_short_show_lbl, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_REPAINT_LBL_SIZE)
+        trade_short_obj.zz_line := f_line_add(trade_short_obj.sw_last_low_bs, trade_short_obj.sw_low, trade_short_obj.sw_last_high_bs, trade_short_obj.sw_high, in_zz_short_show_line, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_LINE_STYLE, in_zz_short_line_w)
+        trade_short_obj.line_l := f_line_add_sw_line(trade_short_obj.sw_last_low_bs, trade_short_obj.sw_low, false, in_sw_short_show_hl_price, in_sw_short_h_price_col, in_sw_short_l_price_col, SW_SHORT_LINE_STYLE, in_sw_short_line_w)
+        trade_short_obj.sw_was_high := false
+        trade_short_obj.sw_was_low := true
+        
+        trade_short_obj.sw_last_ll := (trade_short_obj.sw_low < trade_short_obj.sw_last_low) ? trade_short_obj.sw_low : trade_short_obj.sw_last_ll
+        trade_short_obj.sw_last_hl := (trade_short_obj.sw_low < trade_short_obj.sw_last_low) ? trade_short_obj.sw_last_hl : trade_short_obj.sw_low
+
+        sw_short_is_new_ll := (trade_short_obj.sw_low < trade_short_obj.sw_last_low)
+        sw_short_is_new_hl := (trade_short_obj.sw_low >= trade_short_obj.sw_last_low)
+        
+        trade_short_obj.sw_last_low := trade_short_obj.sw_low
+        trade_short_obj.sw_last_high_bs := 0
+        trade_short_obj.sw_high := high
+        trade_short_obj.sw_high_idx := bar_index
+        sw_short_low_break_happened := false
+    else if (trade_short_obj.sw_trend_mid_break)
+        f_lbl_add(trade_short_obj.sw_last_high_bs, trade_short_obj.sw_high, trade_short_obj.sw_last_high, true, in_zz_short_show_lbl, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_REPAINT_LBL_SIZE)
+        trade_short_obj.zz_line := f_line_add(trade_short_obj.sw_last_high_bs, trade_short_obj.sw_high, trade_short_obj.sw_last_low_bs, trade_short_obj.sw_last_low, in_zz_short_show_line, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_LINE_STYLE, in_zz_short_line_w)
+        trade_short_obj.line_h := f_line_add_sw_line(trade_short_obj.sw_last_high_bs, trade_short_obj.sw_high, true, in_sw_short_show_hl_price, in_sw_short_h_price_col, in_sw_short_l_price_col, SW_SHORT_LINE_STYLE, in_sw_short_line_w)
+        trade_short_obj.sw_was_high := true
+        trade_short_obj.sw_was_low := false
+        
+        trade_short_obj.sw_last_hh := (trade_short_obj.sw_high > trade_short_obj.sw_last_high) ? trade_short_obj.sw_high : trade_short_obj.sw_last_hh
+        trade_short_obj.sw_last_lh := (trade_short_obj.sw_high > trade_short_obj.sw_last_high) ? trade_short_obj.sw_last_lh : trade_short_obj.sw_high
+
+        sw_short_is_new_hh := (trade_short_obj.sw_high > trade_short_obj.sw_last_high)
+        sw_short_is_new_lh := (trade_short_obj.sw_high <= trade_short_obj.sw_last_high)
+        
+        f_lbl_add(0, low, trade_short_obj.sw_last_low, false, in_zz_short_show_lbl, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_REPAINT_LBL_SIZE)
+        trade_short_obj.zz_line := f_line_add(0, low, trade_short_obj.sw_last_high_bs, trade_short_obj.sw_high, in_zz_short_show_line, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_LINE_STYLE, in_zz_short_line_w)
+        trade_short_obj.line_l := f_line_add_sw_line(0, low, false, in_sw_short_show_hl_price, in_sw_short_h_price_col, in_sw_short_l_price_col, SW_SHORT_LINE_STYLE, in_sw_short_line_w)
+        trade_short_obj.sw_was_high := false
+        trade_short_obj.sw_was_low := true
+        
+        trade_short_obj.sw_last_ll := (low < trade_short_obj.sw_last_low) ? low : trade_short_obj.sw_last_ll
+        trade_short_obj.sw_last_hl := (low < trade_short_obj.sw_last_low) ? trade_short_obj.sw_last_hl : low
+
+        sw_short_is_new_ll := (low < trade_short_obj.sw_last_low)
+        sw_short_is_new_hl := (low >= trade_short_obj.sw_last_low)
+        
+        trade_short_obj.sw_last_high := trade_short_obj.sw_high
+        trade_short_obj.sw_last_high_bs := 0
+        trade_short_obj.sw_high := high
+        trade_short_obj.sw_high_idx := bar_index
+        trade_short_obj.sw_last_low := low
+        trade_short_obj.sw_last_low_bs := 0
+        trade_short_obj.sw_low := low
+        trade_short_obj.sw_low_idx := bar_index
+    else
+        if (high > trade_short_obj.sw_high)
+            trade_short_obj.sw_last_high_bs := 0
+            trade_short_obj.sw_high := high
+            trade_short_obj.sw_high_idx := bar_index
+
+if (sw_short_is_downtrend)
+    if (sw_short_is_new_downtrend)
+        // Check if the very first bar of the new down trend is an outside bar up
+        // In this case we will do a +1 first, that will be the continuation of the previous uptrend
+        // Therefore, at the beginning, we should check if this first bar makes a new high (continuation) and reset the variables
+        if (bar_outside_up and sw_short_is_uptrend[1] and (high > trade_short_obj.sw_high))
+            trade_short_obj.sw_last_high_bs := 0
+            trade_short_obj.sw_high := high
+            trade_short_obj.sw_high_idx := bar_index
+        f_lbl_add(trade_short_obj.sw_last_high_bs, trade_short_obj.sw_high, trade_short_obj.sw_last_high, true, in_zz_short_show_lbl, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_REPAINT_LBL_SIZE)
+        trade_short_obj.zz_line := f_line_add(trade_short_obj.sw_last_high_bs, trade_short_obj.sw_high, trade_short_obj.sw_last_low_bs, trade_short_obj.sw_low, in_zz_short_show_line, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_LINE_STYLE, in_zz_short_line_w)
+        trade_short_obj.line_h := f_line_add_sw_line(trade_short_obj.sw_last_high_bs, trade_short_obj.sw_high, true, in_sw_short_show_hl_price, in_sw_short_h_price_col, in_sw_short_l_price_col, SW_SHORT_LINE_STYLE, in_sw_short_line_w)
+        trade_short_obj.sw_was_high := true
+        trade_short_obj.sw_was_low := false
+        
+        trade_short_obj.sw_last_hh := (trade_short_obj.sw_high > trade_short_obj.sw_last_high) ? trade_short_obj.sw_high : trade_short_obj.sw_last_hh
+        trade_short_obj.sw_last_lh := (trade_short_obj.sw_high > trade_short_obj.sw_last_high) ? trade_short_obj.sw_last_lh : trade_short_obj.sw_high
+
+        sw_short_is_new_hh := (trade_short_obj.sw_high > trade_short_obj.sw_last_high)
+        sw_short_is_new_lh := (trade_short_obj.sw_high <= trade_short_obj.sw_last_high)
+        
+        trade_short_obj.sw_last_high := trade_short_obj.sw_high
+        trade_short_obj.sw_last_low_bs := 0
+        trade_short_obj.sw_low := low
+        trade_short_obj.sw_low_idx := bar_index
+        sw_short_high_break_happened := false
+    else if (trade_short_obj.sw_trend_mid_break)
+        f_lbl_add(trade_short_obj.sw_last_low_bs, trade_short_obj.sw_low, trade_short_obj.sw_last_low, false, in_zz_short_show_lbl, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_REPAINT_LBL_SIZE)
+        trade_short_obj.zz_line := f_line_add(trade_short_obj.sw_last_low_bs, trade_short_obj.sw_low, trade_short_obj.sw_last_high_bs, trade_short_obj.sw_last_high, in_zz_short_show_line, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_LINE_STYLE, in_zz_short_line_w)
+        trade_short_obj.line_l := f_line_add_sw_line(trade_short_obj.sw_last_low_bs, trade_short_obj.sw_low, false, in_sw_short_show_hl_price, in_sw_short_h_price_col, in_sw_short_l_price_col, SW_SHORT_LINE_STYLE, in_sw_short_line_w)
+        trade_short_obj.sw_was_high := false
+        trade_short_obj.sw_was_low := true
+        
+        trade_short_obj.sw_last_ll := (trade_short_obj.sw_low < trade_short_obj.sw_last_low) ? trade_short_obj.sw_low : trade_short_obj.sw_last_ll
+        trade_short_obj.sw_last_hl := (trade_short_obj.sw_low < trade_short_obj.sw_last_low) ? trade_short_obj.sw_last_hl : trade_short_obj.sw_low
+
+        sw_short_is_new_ll := (trade_short_obj.sw_low < trade_short_obj.sw_last_low)
+        sw_short_is_new_hl := (trade_short_obj.sw_low >= trade_short_obj.sw_last_low)
+        
+        f_lbl_add(0, high, trade_short_obj.sw_last_high, true, in_zz_short_show_lbl, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_REPAINT_LBL_SIZE)
+        trade_short_obj.zz_line := f_line_add(0, high, trade_short_obj.sw_last_low_bs, trade_short_obj.sw_low, in_zz_short_show_line, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_LINE_STYLE, in_zz_short_line_w)
+        trade_short_obj.line_h := f_line_add_sw_line(0, high, true, in_sw_short_show_hl_price, in_sw_short_h_price_col, in_sw_short_l_price_col, SW_SHORT_LINE_STYLE, in_sw_short_line_w)
+        trade_short_obj.sw_was_high := true
+        trade_short_obj.sw_was_low := false
+        
+        trade_short_obj.sw_last_hh := (high > trade_short_obj.sw_last_high) ? high : trade_short_obj.sw_last_hh
+        trade_short_obj.sw_last_lh := (high > trade_short_obj.sw_last_high) ? trade_short_obj.sw_last_lh : high
+
+        sw_short_is_new_hh := (high > trade_short_obj.sw_last_high)
+        sw_short_is_new_lh := (high <= trade_short_obj.sw_last_high)
+        
+        trade_short_obj.sw_last_low := trade_short_obj.sw_low
+        trade_short_obj.sw_last_low_bs := 0
+        trade_short_obj.sw_low := low
+        trade_short_obj.sw_low_idx := bar_index
+        trade_short_obj.sw_last_high := high
+        trade_short_obj.sw_last_high_bs := 0
+        trade_short_obj.sw_high := high
+        trade_short_obj.sw_high_idx := bar_index
+    else
+        if (low < trade_short_obj.sw_low)
+            trade_short_obj.sw_last_low_bs := 0
+            trade_short_obj.sw_low := low
+            trade_short_obj.sw_low_idx := bar_index
+
+// Check for swing break
+sw_short_is_high_break = (trade_short_obj.sw_trend == SW_DWN_TREND) and not sw_short_high_break_happened and (high > trade_short_obj.sw_last_high)
+sw_short_is_low_break = (trade_short_obj.sw_trend == SW_UP_TREND) and not sw_short_low_break_happened and (low < trade_short_obj.sw_last_low)
+
+// New uptrend
+if sw_short_is_high_break
+    sw_short_is_uptrend := true
+    trade_short_obj.sw_trend := SW_UP_TREND
+    trade_short_obj.sw_cnt := SW_SHORT_MAX_CNT
+    sw_short_high_break_happened := true
+    
+    f_lbl_add(trade_short_obj.sw_last_low_bs, trade_short_obj.sw_low, trade_short_obj.sw_last_low, false, in_zz_short_show_lbl, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_REPAINT_LBL_SIZE)
+    trade_short_obj.zz_line := f_line_add(trade_short_obj.sw_last_low_bs, trade_short_obj.sw_low, trade_short_obj.sw_last_high_bs, trade_short_obj.sw_high, in_zz_short_show_line, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_LINE_STYLE, in_zz_short_line_w)
+    trade_short_obj.line_l := f_line_add_sw_line(trade_short_obj.sw_last_low_bs, trade_short_obj.sw_low, false, in_sw_short_show_hl_price, in_sw_short_h_price_col, in_sw_short_l_price_col, SW_SHORT_LINE_STYLE, in_sw_short_line_w)
+    trade_short_obj.sw_was_high := false
+    trade_short_obj.sw_was_low := true
+        
+    trade_short_obj.sw_last_ll := (trade_short_obj.sw_low < trade_short_obj.sw_last_low) ? trade_short_obj.sw_low : trade_short_obj.sw_last_ll
+    trade_short_obj.sw_last_hl := (trade_short_obj.sw_low < trade_short_obj.sw_last_low) ? trade_short_obj.sw_last_hl : trade_short_obj.sw_low
+
+    sw_short_is_new_ll := (trade_short_obj.sw_low < trade_short_obj.sw_last_low)
+    sw_short_is_new_hl := (trade_short_obj.sw_low >= trade_short_obj.sw_last_low)
+    
+    trade_short_obj.sw_last_low := trade_short_obj.sw_low
+    trade_short_obj.sw_last_high_bs := 0
+    trade_short_obj.sw_high := high
+    trade_short_obj.sw_high_idx := bar_index
+
+// New downtrnd
+if sw_short_is_low_break
+    sw_short_is_downtrend := true
+    trade_short_obj.sw_trend := SW_DWN_TREND
+    trade_short_obj.sw_cnt := SW_SHORT_MIN_CNT
+    sw_short_low_break_happened := true
+    
+    f_lbl_add(trade_short_obj.sw_last_high_bs, trade_short_obj.sw_high, trade_short_obj.sw_last_high, true, in_zz_short_show_lbl, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_REPAINT_LBL_SIZE)
+    trade_short_obj.zz_line := f_line_add(trade_short_obj.sw_last_high_bs, trade_short_obj.sw_high, trade_short_obj.sw_last_low_bs, trade_short_obj.sw_low, in_zz_short_show_line, in_zz_short_bull_col, in_zz_short_bear_col, ZZ_SHORT_LINE_STYLE, in_zz_short_line_w)
+    trade_short_obj.line_h := f_line_add_sw_line(trade_short_obj.sw_last_high_bs, trade_short_obj.sw_high, true, in_sw_short_show_hl_price, in_sw_short_h_price_col, in_sw_short_l_price_col, SW_SHORT_LINE_STYLE, in_sw_short_line_w)
+    trade_short_obj.sw_was_high := true
+    trade_short_obj.sw_was_low := false
+        
+    trade_short_obj.sw_last_hh := (trade_short_obj.sw_high > trade_short_obj.sw_last_high) ? trade_short_obj.sw_high : trade_short_obj.sw_last_hh
+    trade_short_obj.sw_last_lh := (trade_short_obj.sw_high > trade_short_obj.sw_last_high) ? trade_short_obj.sw_last_lh : trade_short_obj.sw_high
+
+    sw_short_is_new_hh := (trade_short_obj.sw_high > trade_short_obj.sw_last_high)
+    sw_short_is_new_lh := (trade_short_obj.sw_high <= trade_short_obj.sw_last_high)
+        
+    trade_short_obj.sw_last_high := trade_short_obj.sw_high
+    trade_short_obj.sw_last_low_bs := 0
+    trade_short_obj.sw_low := low
+    trade_short_obj.sw_low_idx := bar_index
+
+sw_short_is_new_pvt = sw_short_is_new_hh or sw_short_is_new_lh or sw_short_is_new_ll or sw_short_is_new_hl
+sw_short_is_new_high_pvt = sw_short_is_new_hh or sw_short_is_new_lh
+sw_short_is_new_low_pvt = sw_short_is_new_ll or sw_short_is_new_hl
+
+if (sw_short_is_new_hh)
+    trade_short_obj.sw_last_high_type := SWING_HH
+    trade_short_obj.sw_last_swing_type := SWING_HH
+    trade_short_obj.sw_last_swing_price := trade_short_obj.sw_last_high
+    trade_short_obj.sw_last_swing_bs := trade_short_obj.sw_last_high_bs
+if (sw_short_is_new_lh)
+    trade_short_obj.sw_last_high_type := SWING_LH
+    trade_short_obj.sw_last_swing_type := SWING_LH
+    trade_short_obj.sw_last_swing_price := trade_short_obj.sw_last_high
+    trade_short_obj.sw_last_swing_bs := trade_short_obj.sw_last_high_bs
+if (sw_short_is_new_ll)
+    trade_short_obj.sw_last_low_type := SWING_LL
+    trade_short_obj.sw_last_swing_type := SWING_LL
+    trade_short_obj.sw_last_swing_price := trade_short_obj.sw_last_low
+    trade_short_obj.sw_last_swing_bs := trade_short_obj.sw_last_low_bs
+if (sw_short_is_new_hl)
+    trade_short_obj.sw_last_low_type := SWING_HL
+    trade_short_obj.sw_last_swing_type := SWING_HL
+    trade_short_obj.sw_last_swing_price := trade_short_obj.sw_last_low
+    trade_short_obj.sw_last_swing_bs := trade_short_obj.sw_last_low_bs
+
+zz_short_x_start = bar_index - (math.max(trade_short_obj.sw_last_low_bs, trade_short_obj.sw_last_high_bs))                // line.get_x2(zz_line)
+zz_short_y_start = (trade_short_obj.sw_last_low_bs < trade_short_obj.sw_last_high_bs) ? trade_short_obj.sw_last_high : trade_short_obj.sw_last_low        // line.get_y2(zz_line)
+zz_short_y_pvt_price = (trade_short_obj.sw_last_low_bs < trade_short_obj.sw_last_high_bs) ? trade_short_obj.sw_last_low : trade_short_obj.sw_last_high    // line.get_y1(zz_line)
+
+var sw_short_is_ll_coming = false
+var sw_short_is_hh_coming = false
+
+sw_short_is_ll_coming := if (sw_short_is_new_uptrend)
+    false
+else
+    if (not sw_short_is_ll_coming)
+        if (sw_short_is_new_pvt)
+            if (trade_short_obj.sw_was_high)
+                (low < zz_short_y_pvt_price)
+            else
+                sw_short_is_ll_coming
+        else
+            if (trade_short_obj.sw_was_high)
+                (low < zz_short_y_pvt_price)
+            else
+                sw_short_is_ll_coming
+    else
+        sw_short_is_ll_coming
+
+sw_short_is_hh_coming := if (sw_short_is_new_downtrend)
+    false
+else
+    if (not sw_short_is_hh_coming)
+        if (sw_short_is_new_pvt)
+            if (trade_short_obj.sw_was_low)
+                (high > zz_short_y_pvt_price)
+            else
+                sw_short_is_hh_coming
+        else
+            if (trade_short_obj.sw_was_low)
+                (high > zz_short_y_pvt_price)
+            else
+                sw_short_is_hh_coming
+    else
+        sw_short_is_hh_coming
+
+// Repaint {
+if (in_zz_short_repaint_line)
+    float zz_rpnt_y = na
+    color zz_rpnt_col = na
+    zz_update_repaint = false
+
+    if (sw_short_is_new_pvt)
+        if (trade_short_obj.sw_was_high)            // Now looking for lows
+            zz_rpnt_y := low
+            zz_rpnt_col := in_zz_short_repaint_bear_col
+        else                        // Now looking for highs
+            zz_rpnt_y := high
+            zz_rpnt_col := in_zz_short_repaint_bull_col
+        
+            line.set_x1(trade_short_obj.zz_repaint_line, zz_short_x_start)
+            line.set_y1(trade_short_obj.zz_repaint_line, zz_short_y_start)
+            line.set_x2(trade_short_obj.zz_repaint_line, bar_index)
+            line.set_y2(trade_short_obj.zz_repaint_line, zz_rpnt_y)
+            line.set_color(trade_short_obj.zz_repaint_line, zz_rpnt_col)
+    else                            // Update x2 and y2
+        if (trade_short_obj.sw_was_high)            // Now looking for lows
+            zz_rpnt_y := low
+            zz_rpnt_col := in_zz_short_repaint_bear_col
+            zz_update_repaint := trade_short_obj.sw_low_idx != trade_short_obj.sw_low_idx[1]
+        else                        // Now looking for highs
+            zz_rpnt_y := high
+            zz_rpnt_col := in_zz_short_repaint_bull_col
+            zz_update_repaint := trade_short_obj.sw_high_idx != trade_short_obj.sw_high_idx[1]
+
+        if (zz_update_repaint)
+            if (not na(trade_short_obj.zz_repaint_line))
+                line.set_x1(trade_short_obj.zz_repaint_line, zz_short_x_start)
+                line.set_y1(trade_short_obj.zz_repaint_line, zz_short_y_start)
+                line.set_x2(trade_short_obj.zz_repaint_line, bar_index)
+                line.set_y2(trade_short_obj.zz_repaint_line, zz_rpnt_y)
+                line.set_color(trade_short_obj.zz_repaint_line, zz_rpnt_col)
+//}
+
+plotchar(trade_short_obj.sw_cnt, "Swing Count - Short", "", color=color.white)
+//}
+
+//}
+
+// Trend {
+
+// Trend Long {
+var int trend_long_type = TREND_INVALID
+
+// Check for new swing trend changes
+if (sw_long_is_new_pvt)
+    trend_long_type := f_trend_update_trend_with_new_swing(trade_long_obj.sw_last_high_type, trade_long_obj.sw_last_low_type)
+
+var trend_long_sw_high_broken = false
+var trend_long_sw_low_broken = false
+
+trend_long_sw_high_broken := sw_long_is_new_high_pvt ? false : trend_long_sw_high_broken
+trend_long_sw_low_broken := sw_long_is_new_low_pvt ? false : trend_long_sw_low_broken
+
+trend_long_sw_high_break = not trend_long_sw_high_broken and (high > trade_long_obj.sw_last_high)
+trend_long_sw_low_break = not trend_long_sw_low_broken and (low < trade_long_obj.sw_last_low)
+
+trend_long_sw_high_broken := trend_long_sw_high_break ? true : trend_long_sw_high_broken
+trend_long_sw_low_broken := trend_long_sw_low_break ? true : trend_long_sw_low_broken
+
+plotshape(in_trend_long_show_break and trend_long_sw_high_break, "Trend Swing High Break", shape.triangleup, location.abovebar, in_trend_long_break_bull_col)
+plotshape(in_trend_long_show_break and trend_long_sw_low_break, "Trend Swing Low Break", shape.triangledown, location.belowbar, in_trend_long_break_bear_col)
+
+if (trend_long_sw_high_break or trend_long_sw_low_break)
+    trend_long_type := f_trend_update_trend_with_new_break(trend_long_sw_high_break, trade_long_obj.sw_last_high_type, trade_long_obj.sw_last_low_type, trend_long_type)
+
+trend_long_bg_color = (trend_long_type == TREND_UP_TREND) ? in_trend_long_bg_bull_col : (trend_long_type == TREND_DOWN_TREND) ? in_trend_long_bg_bear_col : (trend_long_type == TREND_UNCERTAIN_TREND) ? in_trend_long_bg_unc_col : na
+bgcolor(in_trend_long_bg_en ? trend_long_bg_color : na, title="Trend Type")
+
+trend_long_is_new_uptrend = (trend_long_type[1] != TREND_UP_TREND) and (trend_long_type == TREND_UP_TREND)
+trend_long_is_new_downtrend = (trend_long_type[1] != TREND_DOWN_TREND) and (trend_long_type == TREND_DOWN_TREND)
+
+trend_long_uncertain_high_break = (trend_long_type == TREND_UNCERTAIN_TREND) and (trade_long_obj.sw_last_low_type == SWING_LL)
+
+trend_long_cond = (trend_long_type != TREND_UP_TREND)    // Not uptrend because we will set a limit order (last swing high) when it is not an uptrend. Once the price reaches the limit order (swing break) the uptrend will start automatically
+trend_long_exit_cond = (trend_long_type[1] == TREND_UP_TREND) and (trend_long_type != TREND_UP_TREND) and trend_long_sw_low_break
+//}
+
+// Trend Short {
+var int trend_short_type = TREND_INVALID
+
+// Check for new swing trend changes
+if (sw_short_is_new_pvt)
+    trend_short_type := f_trend_update_trend_with_new_swing(trade_short_obj.sw_last_high_type, trade_short_obj.sw_last_low_type)
+
+var trend_short_sw_high_broken = false
+var trend_short_sw_low_broken = false
+
+trend_short_sw_high_broken := sw_short_is_new_high_pvt ? false : trend_short_sw_high_broken
+trend_short_sw_low_broken := sw_short_is_new_low_pvt ? false : trend_short_sw_low_broken
+
+trend_short_sw_high_break = not trend_short_sw_high_broken and (high > trade_short_obj.sw_last_high)
+trend_short_sw_low_break = not trend_short_sw_low_broken and (low < trade_short_obj.sw_last_low)
+
+trend_short_sw_high_broken := trend_short_sw_high_break ? true : trend_short_sw_high_broken
+trend_short_sw_low_broken := trend_short_sw_low_break ? true : trend_short_sw_low_broken
+
+plotshape(in_trend_short_show_break and trend_short_sw_high_break, "Trend Swing High Break", shape.triangleup, location.abovebar, in_trend_short_break_bull_col)
+plotshape(in_trend_short_show_break and trend_short_sw_low_break, "Trend Swing Low Break", shape.triangledown, location.belowbar, in_trend_short_break_bear_col)
+
+if (trend_short_sw_high_break or trend_short_sw_low_break)
+    trend_short_type := f_trend_update_trend_with_new_break(trend_short_sw_high_break, trade_short_obj.sw_last_high_type, trade_short_obj.sw_last_low_type, trend_short_type)
+
+trend_short_bg_color = (trend_short_type == TREND_UP_TREND) ? in_trend_short_bg_bull_col : (trend_short_type == TREND_DOWN_TREND) ? in_trend_short_bg_bear_col : (trend_short_type == TREND_UNCERTAIN_TREND) ? in_trend_short_bg_unc_col : na
+bgcolor(in_trend_short_bg_en ? trend_short_bg_color : na, title="Trend Type")
+
+trend_short_is_new_uptrend = (trend_short_type[1] != TREND_UP_TREND) and (trend_short_type == TREND_UP_TREND)
+trend_short_is_new_downtrend = (trend_short_type[1] != TREND_DOWN_TREND) and (trend_short_type == TREND_DOWN_TREND)
+
+trend_short_uncertain_low_break = (trend_short_type == TREND_UNCERTAIN_TREND) and (trade_short_obj.sw_last_high_type == SWING_HH)
+
+trend_short_cond = (trend_short_type != TREND_DOWN_TREND) // Not downtrend because we will set a limit order (last swing low) when it is not a downtrend. Once the price reaches the limit order (swing break) the downtrend will start automatically
+trend_short_exit_cond = (trend_short_type[1] == TREND_DOWN_TREND) and (trend_short_type != TREND_DOWN_TREND) and trend_short_sw_high_break
+//}
+
+//}
+
+// Strategy {
+strat_is_new_pos = (strategy.position_size != 0) and (strategy.position_size[1] != strategy.position_size)
+strat_is_pos_closed = ((strategy.position_size[1] != 0) and (strategy.position_size == 0))
+strat_is_long = strategy.position_size > 0
+strat_is_short = strategy.position_size < 0
+strat_is_new_long = (strategy.position_size > strategy.position_size[1])
+strat_is_new_short = (strategy.position_size < strategy.position_size[1])
+
+var strat_can_look_for_long = false
+var strat_can_look_for_short = false
+
+var float strat_initial_sl = na
+var float strat_sl_price = na
+var bool strat_be_moved = false
+var bool strat_tsl_started = false
+var float strat_opp_limit_order_price = na
+
+// Entry {
+strat_long_selected = (in_strat_dir == strat_dir_long) or (in_strat_dir == strat_dir_both)
+strat_short_selected = (in_strat_dir == strat_dir_short) or (in_strat_dir == strat_dir_both)
+strat_rev_selected = (in_strat_dir == strat_dir_both) and in_strat_short_rev_en
+
+strat_long_pivots_formed = (not na(trade_long_obj.sw_last_high)) and (not na(trade_long_obj.sw_last_low))
+strat_short_pivots_formed = (not na(trade_short_obj.sw_last_high)) and (not na(trade_short_obj.sw_last_low))
+
+strat_can_look_for_long := (strat_is_pos_closed) ? false : sw_long_is_new_ll ? true : strat_can_look_for_long
+strat_can_look_for_short := (strat_is_pos_closed) ? false : sw_short_is_new_hh ? true : strat_can_look_for_short
+
+var strat_long_break_entry_blocked = false
+var strat_short_break_entry_blocked = false
+
+strat_long_break_entry_blocked := if ((trend_long_type == TREND_DOWN_TREND) and (sw_long_is_ll_coming))
+    true
+else
+    if (sw_long_is_new_hh or sw_long_is_new_lh)
+        false
+    else
+        strat_long_break_entry_blocked
+
+strat_short_break_entry_blocked := if ((trend_short_type == TREND_UP_TREND) and (sw_short_is_hh_coming))
+    true
+else
+    if (sw_short_is_new_ll or sw_short_is_new_hl)
+        false
+    else
+        strat_short_break_entry_blocked
+
+strat_long_normal_entry = not strat_is_long and (in_strat_long_entry_type == strat_entry_type_sw) and time_is_good and sma_long_cond and strat_long_pivots_formed and strat_can_look_for_long and sw_long_is_new_hl
+strat_long_break_entry_limit = not strat_is_long and time_is_good and sma_long_cond and strat_long_pivots_formed and trend_long_cond and not strat_long_break_entry_blocked and not trend_long_uncertain_high_break
+strat_long_break_entry_market = not strat_is_long and time_is_good and sma_long_cond and strat_long_pivots_formed and not strat_long_break_entry_blocked and trend_long_is_new_uptrend and trend_long_sw_high_break and not trend_long_uncertain_high_break
+
+strat_short_normal_entry = strat_short_selected and not strat_is_short and (in_strat_short_entry_type == strat_entry_type_sw) and time_is_good and sma_short_cond and strat_short_pivots_formed and strat_can_look_for_short and sw_short_is_new_lh
+strat_short_break_entry_limit = strat_short_selected and not strat_is_short and time_is_good and sma_short_cond and strat_short_pivots_formed and trend_short_cond and not strat_short_break_entry_blocked and not trend_short_uncertain_low_break
+strat_short_break_entry_market = strat_short_selected and not strat_is_short and time_is_good and sma_short_cond and strat_short_pivots_formed and not strat_short_break_entry_blocked and trend_short_is_new_downtrend and trend_short_sw_low_break and not trend_short_uncertain_low_break
+
+strat_initial_sl_long = f_strat_update_initial_sl(true, trade_long_obj.sw_last_hl, trade_long_obj.sw_last_swing_type, trade_long_obj.sw_last_swing_price, trade_long_obj.sw_last_swing_bs, in_strat_long_init_sl_off)
+strat_initial_sl_short = f_strat_update_initial_sl(false, trade_short_obj.sw_last_lh, trade_short_obj.sw_last_swing_type, trade_short_obj.sw_last_swing_price, trade_short_obj.sw_last_swing_bs, in_strat_short_init_sl_off)
+strat_initial_sl := strat_is_pos_closed ? na : strat_is_new_long ? strat_initial_sl_long : strat_is_new_short ? strat_initial_sl_short : strat_initial_sl
+
+plotchar(strategy.equity, "Equity", "", color=color.white, display=display.data_window)
+plotchar(strategy.position_size, "Position Size", "", color=color.white, display=display.data_window)
+
+if (strat_long_selected)
+    if (strat_long_normal_entry)
+        strat_pos_size = f_strat_get_pos_size(in_strat_pos_size_method_type, in_strat_pos_size_price_type, in_strat_pos_size_value, close, strat_initial_sl_long)
+        strategy.entry("Long", strategy.long, qty=strat_pos_size, comment="L-Swing", oca_name="control-l", oca_type=strategy.oca.reduce)
+    else if (strat_long_break_entry_market)
+        strat_pos_size = f_strat_get_pos_size(in_strat_pos_size_method_type, in_strat_pos_size_price_type, in_strat_pos_size_value, close, strat_initial_sl_long)
+        strategy.entry("Long", strategy.long, qty=strat_pos_size, comment="L-Mkt-Break", oca_name="control-l", oca_type=strategy.oca.reduce)
+    else if (strat_long_break_entry_limit)
+        entry_price = trade_long_obj.sw_last_high + syminfo.mintick
+        strat_pos_size = f_strat_get_pos_size(in_strat_pos_size_method_type, in_strat_pos_size_price_type, in_strat_pos_size_value, entry_price, strat_initial_sl_long)
+        strategy.entry("Long", strategy.long, qty=strat_pos_size, comment="L-Lmt-Break", stop=entry_price, oca_name="control-l", oca_type=strategy.oca.reduce)
+
+if (strat_short_normal_entry)
+    strat_pos_size = f_strat_get_pos_size(in_strat_pos_size_method_type, in_strat_pos_size_price_type, in_strat_pos_size_value, close, strat_initial_sl_short)
+    strategy.entry("Short", strategy.short, qty=strat_pos_size, comment="S-Swing", oca_name="control-s", oca_type=strategy.oca.reduce)
+else if (strat_short_break_entry_market)
+    strat_pos_size = f_strat_get_pos_size(in_strat_pos_size_method_type, in_strat_pos_size_price_type, in_strat_pos_size_value, close, strat_initial_sl_short)
+    strategy.entry("Short", strategy.short, qty=strat_pos_size, comment="S-Mkt-Break", oca_name="control-s", oca_type=strategy.oca.reduce)
+else if (strat_short_break_entry_limit)
+    entry_price = trade_short_obj.sw_last_low - syminfo.mintick
+    strat_pos_size = f_strat_get_pos_size(in_strat_pos_size_method_type, in_strat_pos_size_price_type, in_strat_pos_size_value, entry_price, strat_initial_sl_short)
+    strategy.entry("Short", strategy.short, qty=strat_pos_size, comment="S-Lmt-Break", stop=entry_price, oca_name="control-s", oca_type=strategy.oca.reduce)
+//}
+
+//is_long_correct = strat_is_new_long and trend_long_sw_high_break and (trend_long_type == TREND_UP_TREND)
+//is_long_wrong = (strat_is_new_long and (trend_long_type != TREND_UP_TREND)) or (trend_long_is_new_uptrend and not strat_is_new_long and trend_long_sw_high_break)
+
+//bgcolor(is_long_correct ? color.green : na)
+//bgcolor(is_long_wrong ? color.red : na)
+
+strat_long_cancel_cond = (in_strat_long_entry_type == strat_entry_type_break) and ((not strat_long_break_entry_limit) or (strat_long_break_entry_blocked)) and not strat_long_break_entry_market
+strat_short_cancel_cond = (in_strat_short_entry_type == strat_entry_type_break) and ((not strat_short_break_entry_limit) or (strat_short_break_entry_blocked)) and not strat_short_break_entry_market
+
+if (strat_long_cancel_cond)
+    strategy.cancel("Long")
+
+if (strat_short_cancel_cond)
+    strategy.cancel("Short")
+
+strat_entry_price = strategy.opentrades.entry_price(strategy.opentrades-1)
+
+// Take Profit {
+strat_tp_long = strategy.position_avg_price * (1 + in_strat_long_tp_per)
+strat_tp_short = strategy.position_avg_price * (1 - in_strat_short_tp_per)
+strat_tp_price = if (strat_is_long)
+    if (in_strat_long_tp_en)
+        strat_tp_long
+    else
+        na
+else if (strat_is_short)
+    if (in_strat_short_tp_en)
+        strat_tp_short
+    else
+        na
+else
+    na
+//}
+
+// Stop Loss {
+strat_bs_entry = bar_index - strategy.opentrades.entry_bar_index(strategy.opentrades-1)
+strat_long_high_after_entry = ((strat_bs_entry - trade_long_obj.sw_last_high_bs) > 0)
+strat_short_low_after_entry = ((strat_bs_entry - trade_short_obj.sw_last_low_bs) > 0)
+strat_be_moved := (strat_is_pos_closed or strat_is_new_pos) ?  na : strat_be_moved
+strat_be_moved := not strat_be_moved ? strat_is_long ? sw_long_is_new_hl and strat_long_high_after_entry : strat_is_short ? sw_short_is_new_lh and strat_short_low_after_entry : strat_be_moved : strat_be_moved
+strat_be_price = strat_is_long ? strat_entry_price * (1 - in_strat_long_sl_be_off) : strat_is_short ? strat_entry_price * (1 + in_strat_short_sl_be_off) : na
+strat_tsl_started := (strat_is_pos_closed or strat_is_new_pos) ? false : strat_tsl_started
+
+strat_sl_price := if (strat_is_long)
+    if (in_strat_long_move_to_be_en)
+        if (not strat_be_moved)
+            strat_initial_sl
+        else
+            if (not strat_tsl_started)
+                if (sw_long_is_new_hl and not strat_is_new_long)
+                    strat_tsl_started := true
+                strat_be_price
+            else
+                if (sw_long_is_new_hl and not strat_is_new_long)
+                    in_strat_long_tsl_off_en ? trade_long_obj.sw_last_low * (1 - in_strat_long_tsl_off) : trade_long_obj.sw_last_low
+                else
+                    strat_sl_price
+    else
+        if (not strat_tsl_started)
+            if (sw_long_is_new_hl and not strat_is_new_long)
+                strat_tsl_started := true
+                in_strat_long_tsl_off_en ? trade_long_obj.sw_last_low * (1 - in_strat_long_tsl_off) : trade_long_obj.sw_last_low
+            else
+                strat_initial_sl
+        else
+            if (sw_long_is_new_hl and not strat_is_new_long)
+                in_strat_long_tsl_off_en ? trade_long_obj.sw_last_low * (1 - in_strat_long_tsl_off) : trade_long_obj.sw_last_low
+            else
+                strat_sl_price
+else if (strat_is_short)
+    if (in_strat_short_move_to_be_en)
+        if (not strat_be_moved)
+            strat_initial_sl
+        else
+            if (not strat_tsl_started)                
+                if (sw_short_is_new_lh and not strat_is_new_short)
+                    strat_tsl_started := true
+                strat_be_price
+            else
+                if (sw_short_is_new_lh and not strat_is_new_short)
+                    in_strat_short_tsl_off_en ? trade_short_obj.sw_last_high * (1 + in_strat_short_tsl_off) : trade_short_obj.sw_last_high
+                else
+                    strat_sl_price
+    else
+        if (not strat_tsl_started)
+            if (sw_short_is_new_lh and not strat_is_new_short)
+                strat_tsl_started := true
+                in_strat_short_tsl_off_en ? trade_short_obj.sw_last_high * (1 + in_strat_short_tsl_off) : trade_short_obj.sw_last_high
+            else
+                strat_initial_sl
+        else
+            if (sw_short_is_new_lh and not strat_is_new_short)
+                in_strat_short_tsl_off_en ? trade_short_obj.sw_last_high * (1 + in_strat_short_tsl_off) : trade_short_obj.sw_last_high
+            else
+                strat_sl_price
+else
+    na
+//}
+
+if (strat_is_long and trend_long_exit_cond)
+    strategy.close("Long", comment="L-Trend")
+
+if (strat_is_short and trend_short_exit_cond)
+    strategy.close("Short", comment="S-Trend")
+
+strat_long_pi_exit = false
+
+if (strat_is_long and in_strat_long_pi_exit_en and pi_top)
+    strat_long_pi_exit := true
+    strategy.close("Long", comment="L-Pi")
+
+if (strat_is_short and in_strat_short_pi_exit_en and pi_bot)
+    strategy.close("Short", comment="S-Pi")
+
+// SL - Reversal {
+if (in_strat_long_opp_limit_en)
+    if (strat_is_long and sw_long_is_new_lh)
+        a = math.max(strat_sl_price, strat_entry_price)
+        b = close[trade_long_obj.sw_last_high_bs]
+        strat_opp_limit_order_price := (a + ((b - a) * in_strat_long_opp_limit_per))
+        
+        if (strat_opp_limit_order_price > strat_sl_price)
+            if (close > strat_opp_limit_order_price)
+                strat_sl_price := strat_opp_limit_order_price
+            else
+                strat_tp_price := strat_opp_limit_order_price
+
+if (in_strat_short_opp_limit_en)
+    if (strat_is_short and sw_short_is_new_hl)
+        a = math.min(strat_sl_price, strat_entry_price)
+        b = close[trade_short_obj.sw_last_low_bs]
+        strat_opp_limit_order_price := (a + ((b - a) * in_strat_short_opp_limit_per))
+        
+        if (strat_opp_limit_order_price < strat_sl_price)
+            if (close < strat_opp_limit_order_price)
+                strat_sl_price := strat_opp_limit_order_price
+            else
+                strat_tp_price := strat_opp_limit_order_price
+//}
+
+// Reversal Entry {
+var strat_long_rev_short_entry_act = false
+var float strat_long_rev_short_entry_price = na
+
+// Long reversal - Short entry {
+if (strat_rev_selected)
+    if (strat_is_new_pos and strat_long_rev_short_entry_act)
+        strat_long_rev_short_entry_act := false
+        strat_long_rev_short_entry_price := na
+        strategy.cancel("Short")
+    else if (strat_long_pi_exit)        
+        strat_long_rev_short_entry_price := (strat_sl_price + (1 * syminfo.mintick))
+        strat_pos_size = f_strat_get_pos_size(in_strat_pos_size_method_type, in_strat_pos_size_price_type, in_strat_pos_size_value, strat_long_rev_short_entry_price, strat_initial_sl_short)
+        strategy.entry("Short", strategy.short, qty=strat_pos_size, comment="S-Rev-Pi", oca_name="control-s", oca_type=strategy.oca.reduce)
+    else if (strat_is_long and strat_tsl_started)
+        strat_long_rev_short_entry_act := true
+        strat_long_rev_short_entry_price := (strat_sl_price + (1 * syminfo.mintick))
+        strat_pos_size = f_strat_get_pos_size(in_strat_pos_size_method_type, in_strat_pos_size_price_type, in_strat_pos_size_value, strat_long_rev_short_entry_price, strat_initial_sl_short)
+        strategy.entry("Short", strategy.short, qty=strat_pos_size, comment="S-Rev", stop=strat_long_rev_short_entry_price, oca_name="control-s", oca_type=strategy.oca.reduce)
+ //}
+
+//}
+
+// Exit Comments {
+strat_comm_profit = if (strat_is_long)
+    if (strat_tp_price > strat_entry_price)
+        "L-TP"
+    else
+        "L-SL"
+else if (strat_is_short)
+    if (strat_tp_price < strat_entry_price)
+        "S-TP"
+    else
+        "S-SL"
+else
+    "X-TP"
+
+strat_comm_loss = if (strat_is_long)
+    if (strat_sl_price > strat_entry_price)
+        "L-TP"
+    else
+        "L-SL"
+else if (strat_is_short)
+    if (strat_sl_price < strat_entry_price)
+        "S-TP"
+    else
+        "S-SL"
+else
+    "X-SL"
+//}
+
+if (strat_is_long)
+    strategy.exit("Long Exit", "Long", stop=strat_sl_price, limit=strat_tp_price, comment_loss=strat_comm_loss, comment_profit=strat_comm_profit, oca_name="control-s")
+
+if (strat_is_short)
+    strategy.exit("Short Exit", "Short", stop=strat_sl_price, limit=strat_tp_price, comment_loss=strat_comm_loss, comment_profit=strat_comm_profit, oca_name="control-l")
+
+strat_opp_limit_order_price := strat_is_pos_closed or strat_is_new_pos ? na : strat_opp_limit_order_price
+//}
+
+// Plot {
+p_ep_col = strat_is_long ? in_strat_long_ep_col : strat_is_short ? in_strat_short_ep_col : color.yellow
+p_tp_col = strat_is_long ? in_strat_long_tp_col : strat_is_short ? in_strat_short_tp_col : color.yellow
+p_sl_col = strat_is_long ? (strat_sl_price > strat_entry_price) ? in_strat_long_tp_col : in_strat_long_sl_col : strat_is_short ? (strat_sl_price < strat_entry_price) ? in_strat_short_tp_col : in_strat_short_sl_col : color.yellow
+
+p_ep = plot(strat_entry_price, "Entry Price", p_ep_col, in_strat_long_line_w, plot.style_linebr)
+p_tp = plot(strat_tp_price, "Take Profit", p_tp_col, in_strat_long_line_w, plot.style_linebr)
+p_sl = plot(strat_sl_price, "Stop Loss", p_sl_col, in_strat_long_line_w, plot.style_linebr)
+p_lim = plot(strat_opp_limit_order_price, "Limit Order Price", color.purple, in_strat_long_line_w, plot.style_linebr)
+
+color p_tp_fill_col_long = strat_is_long ? color.new(in_strat_long_tp_col, 85) : na
+color p_sl_fill_col_long = strat_is_long ? (strat_sl_price > strat_entry_price) ? color.new(in_strat_long_tp_col, 85) : color.new(in_strat_long_sl_col, 85) : na
+
+color p_tp_fill_col_short = strat_is_short ? color.new(in_strat_short_tp_col, 85) : na
+color p_sl_fill_col_short = strat_is_short ? (strat_sl_price < strat_entry_price) ? color.new(in_strat_short_tp_col, 85) : color.new(in_strat_short_sl_col, 85) : na
+
+fill(p_ep, p_tp, p_tp_fill_col_long, title="Long - TP Fill", display=in_strat_long_fill ? display.all : display.none)
+fill(p_ep, p_sl, p_sl_fill_col_long, title="Long - SL Fill", display=in_strat_long_fill ? display.all : display.none)
+
+fill(p_ep, p_tp, p_tp_fill_col_short, title="Short - TP Fill", display=in_strat_short_fill ? display.all : display.none)
+fill(p_ep, p_sl, p_sl_fill_col_short, title="Short - SL Fill", display=in_strat_short_fill ? display.all : display.none)
+//}
+
+//}
