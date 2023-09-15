@@ -116,12 +116,20 @@ def getdata(ticker, timeframe, day):
     return df 
 
 
+<<<<<<< HEAD
 def create_marker_trace(df, column_name, marker_symbol, y_column, y_offset, text_label, name, color):
+=======
+def create_marker_trace(df, column_name, marker_symbol, y_offset, text_label, name, color):
+>>>>>>> 13b691d7285d466d2fe2b8a0dff9b2018ba2b337
     filtered_df = df[df[column_name]]
     
     markers = go.Scatter(
         x=filtered_df.index,
+<<<<<<< HEAD
         y=filtered_df[y_column] + y_offset,
+=======
+        y=filtered_df['High'] + y_offset,
+>>>>>>> 13b691d7285d466d2fe2b8a0dff9b2018ba2b337
         mode='markers+text',
         text=text_label,
         textposition='top center' if y_offset > 0 else 'bottom center',
