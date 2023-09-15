@@ -115,6 +115,32 @@ def getdata(ticker, timeframe, day):
     df= df.astype(float)
     return df 
 
+
+def create_marker_trace(df, column_name, marker_symbol, y_offset, text_label, name, color):
+    filtered_df = df[df[column_name]]
+    
+    markers = go.Scatter(
+        x=filtered_df.index,
+        y=filtered_df['High'] + y_offset,
+        mode='markers+text',
+        text=text_label,
+        textposition='top center' if y_offset > 0 else 'bottom center',
+        marker=dict(
+            symbol=marker_symbol,
+            size=10,
+            color=color,
+            line=dict(
+                color=color,
+                width=2,
+            )
+        ),
+        visible=True,
+        name=name,
+    )
+    
+    return markers
+
+
 def strategy1_Signals(ticker, timeframe, HL = 20, takeLong = True, takeShort = True, risk = 15):
     df = getdata(ticker, timeframe)
     df = pd.concat((df,ta.ha(df.Open, df.High, df.Low, df.Close)), axis = 1)
