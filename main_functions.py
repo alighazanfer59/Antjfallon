@@ -140,6 +140,7 @@ def create_marker_trace(df, column_name, marker_symbol, y_column, y_offset, text
     
     return markers
 
+
 def strategy1_Signals(ticker, timeframe, HL = 20, takeLong = True, takeShort = True, risk = 15):
     df = getdata(ticker, timeframe)
     df = pd.concat((df,ta.ha(df.Open, df.High, df.Low, df.Close)), axis = 1)
