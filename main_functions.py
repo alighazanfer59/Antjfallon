@@ -1,5 +1,7 @@
 import ccxt
 # from naoranaConfig import binanceAPI
+import plotly.graph_objects as go
+from plotly.offline import init_notebook_mode, iplot
 import pandas as pd
 import pandas_ta as ta
 import numpy as np
@@ -181,6 +183,40 @@ def create_background_shapes(df, trend_column, trend_start, trend_end, bg_color,
             start_index = None
 
     return background_shapes
+
+def create_zigzag_trace(df, sw_top_column, sw_bottom_column, uptrend_color, downtrend_color):
+    zigzag_x = []
+    zigzag_y = []
+    zigzag_colors = []
+    current_trend = None
+    prev_trend = None
+    zigzag_color = uptrend_color
+
+    for index, row in df.iterrows():
+        if row[sw_top_column]:
+            current_trend = 1
+        elif row[sw_bottom_column]:
+            current_trend = -1
+
+        if current_trend != prev_trend:
+            zigzag_x.append(index)
+            zigzag_y.append(row['High'] if current_trend == 1 else row['Low'])
+            zigzag_colors.append(zigzag_color)
+            zigzag_color = uptrend_color if current_trend == 1 else downtrend_color
+
+        prev_trend = current_trend
+
+    zigzag_trace = go.Scatter(
+        x=zigzag_x,
+        y=zigzag_y,
+        mode='lines',
+        line=dict(width=2),
+        name='Zigzag Line',
+        hoverinfo='none',
+        marker=dict(color=zigzag_colors)
+    )
+
+    return zigzag_trace
 
 
 def strategy1_Signals(ticker, timeframe, HL = 20, takeLong = True, takeShort = True, risk = 15):
