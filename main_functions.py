@@ -116,20 +116,12 @@ def getdata(ticker, timeframe, day):
     return df 
 
 
-<<<<<<< HEAD
 def create_marker_trace(df, column_name, marker_symbol, y_column, y_offset, text_label, name, color):
-=======
-def create_marker_trace(df, column_name, marker_symbol, y_offset, text_label, name, color):
->>>>>>> 13b691d7285d466d2fe2b8a0dff9b2018ba2b337
     filtered_df = df[df[column_name]]
     
     markers = go.Scatter(
         x=filtered_df.index,
-<<<<<<< HEAD
         y=filtered_df[y_column] + y_offset,
-=======
-        y=filtered_df['High'] + y_offset,
->>>>>>> 13b691d7285d466d2fe2b8a0dff9b2018ba2b337
         mode='markers+text',
         text=text_label,
         textposition='top center' if y_offset > 0 else 'bottom center',
@@ -147,6 +139,48 @@ def create_marker_trace(df, column_name, marker_symbol, y_offset, text_label, na
     )
     
     return markers
+
+
+# Define a function to create background traces for trends
+def create_background_trace(df, trend_value, color, opacity):
+    return go.Scatter(
+        x=df[df['sw_trend'] == trend_value].index,
+        y=[df['Low'].min()] * len(df[df['sw_trend'] == trend_value]),
+        mode='lines',
+        fill='tozeroy',
+        fillcolor=f'rgba({color}, {opacity})',
+        line=dict(width=0),  # Set line width to 0 to hide the line
+        showlegend=False,
+    )
+
+def create_background_shapes(df, trend_column, trend_start, trend_end, bg_color, opacity):
+    background_shapes = []
+    start_index = None
+
+    for index, row in df.iterrows():
+        if row[trend_column] == trend_start:
+            if start_index is None:
+                start_index = index
+        elif row[trend_column] == trend_end and start_index is not None:
+            end_index = index
+            shape = {
+                'type': 'rect',
+                'xref': 'x',
+                'yref': 'paper',
+                'x0': start_index,
+                'x1': end_index,
+                'y0': 0,
+                'y1': 1,
+                'fillcolor': bg_color,
+                'opacity': opacity,
+                'line': {
+                    'width': 0,
+                }
+            }
+            background_shapes.append(shape)
+            start_index = None
+
+    return background_shapes
 
 
 def strategy1_Signals(ticker, timeframe, HL = 20, takeLong = True, takeShort = True, risk = 15):
