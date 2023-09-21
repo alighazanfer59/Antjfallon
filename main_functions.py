@@ -142,47 +142,93 @@ def create_marker_trace(df, column_name, marker_symbol, y_column, y_offset, text
     
     return markers
 
-
-# Define a function to create background traces for trends
-def create_background_trace(df, trend_value, color, opacity):
-    return go.Scatter(
-        x=df[df['sw_trend'] == trend_value].index,
-        y=[df['Low'].min()] * len(df[df['sw_trend'] == trend_value]),
-        mode='lines',
-        fill='tozeroy',
-        fillcolor=f'rgba({color}, {opacity})',
-        line=dict(width=0),  # Set line width to 0 to hide the line
-        showlegend=False,
-    )
-
-def create_background_shapes(df, trend_column, trend_start, trend_end, bg_color, opacity):
+def create_background_shapes(df, trend_column, bg_colors):
     background_shapes = []
+    current_trend = None  # Set an initial default trend
     start_index = None
 
     for index, row in df.iterrows():
-        if row[trend_column] == trend_start:
-            if start_index is None:
-                start_index = index
-        elif row[trend_column] == trend_end and start_index is not None:
-            end_index = index
-            shape = {
-                'type': 'rect',
-                'xref': 'x',
-                'yref': 'paper',
-                'x0': start_index,
-                'x1': end_index,
-                'y0': 0,
-                'y1': 1,
-                'fillcolor': bg_color,
-                'opacity': opacity,
-                'line': {
-                    'width': 0,
+        trend = row[trend_column]
+        
+        # Check if trend is not 'nan' and not equal to the current trend
+        if not pd.isna(trend) and trend != current_trend:
+            if current_trend is not None:
+                end_index = index
+                bg_color = bg_colors.get(current_trend, 'gray')  # Use 'gray' for unknown trends
+                shape = {
+                    'type': 'rect',
+                    'xref': 'x',
+                    'yref': 'paper',
+                    'x0': start_index,
+                    'x1': end_index,
+                    'y0': 0,
+                    'y1': 1,
+                    'fillcolor': bg_color,
+                    'opacity': 0.15,  # Adjust opacity as needed
+                    'line': {
+                        'width': 0,
+                    }
                 }
+                background_shapes.append(shape)
+            
+            start_index = index
+            current_trend = trend
+
+    # Add the last shape
+    if start_index is not None:
+        end_index = df.index[-1]
+        bg_color = bg_colors.get(current_trend, 'gray')  # Use 'gray' for unknown trends
+        shape = {
+            'type': 'rect',
+            'xref': 'x',
+            'yref': 'paper',
+            'x0': start_index,
+            'x1': end_index,
+            'y0': 0,
+            'y1': 1,
+            'fillcolor': bg_color,
+            'opacity': 0.15,  # Adjust opacity as needed
+            'line': {
+                'width': 0,
             }
-            background_shapes.append(shape)
-            start_index = None
+        }
+        background_shapes.append(shape)
 
     return background_shapes
+
+def plot_labels(df, label_params, fig):
+    label_data = pd.DataFrame()
+
+    for label, params in label_params.items():
+        label_df = df[(df['sw_highs'] == label) & df['sw_top']]
+        label_df.loc[:, 'sw_lows'] = None
+        label_data = pd.concat([label_data, label_df])
+
+        label_df = df[(df['sw_lows'] == label) & df['sw_bottom']]
+        label_df.loc[:, 'sw_highs'] = None
+        label_data = pd.concat([label_data, label_df])
+
+    label_data.sort_index(inplace=True)
+
+    for label, params in label_params.items():
+        label_data['y_position'] = None
+
+        label_data.loc[label_data['sw_highs'] == label, 'y_position'] = label_data['High'] + 1800
+        label_data.loc[label_data['sw_lows'] == label, 'y_position'] = label_data['Low'] - 1800
+
+        scatter = go.Scatter(
+            x=label_data.index,
+            y=label_data['y_position'],
+            mode='text',
+            text=label.upper(),
+            textfont=dict(color=params['color'], size=12),
+            name=label.upper(),
+            textposition=params['textposition']
+        )
+
+        fig.add_trace(scatter)
+
+    label_data.drop(columns=['y_position'], inplace=True)
 
 def create_zigzag_trace(df, sw_top_column, sw_bottom_column, uptrend_color, downtrend_color):
     zigzag_x = []
