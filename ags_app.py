@@ -44,7 +44,7 @@ st.write(f"Selected Ticker: {sel_ticker}")
 
 
 # You can use a date input widget for the start date
-start_date_input = str(st.date_input("Select Start Date:", datetime(2020, 1, 1)))
+start_date_input = str(st.date_input("Select Start Date:", datetime(2019, 9, 8)))
 start_date = datetime.strptime(start_date_input, "%Y-%m-%d")
 
 current_date = str(datetime.now())
