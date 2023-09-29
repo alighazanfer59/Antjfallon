@@ -704,10 +704,10 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=350):
     annotations = []
 
     # Create sw_top marker trace
-    sw_top_markers = create_marker_trace(df, 'sw_top', 'triangle-up', 'High', 0.005, 'Top', 'Trend Peaks', 'green')
+    sw_top_markers = create_marker_trace(df, 'sw_top', 'triangle-up', 'High', 0.005, '', 'Trend Peaks', 'green')
 
     # Create sw_bottom marker trace
-    sw_bottom_markers = create_marker_trace(df, 'sw_bottom', 'triangle-down', 'Low', -0.005, 'Bottom', 'Trend Bottoms', 'red')
+    sw_bottom_markers = create_marker_trace(df, 'sw_bottom', 'triangle-down', 'Low', -0.005, '', 'Trend Bottoms', 'red')
 
     # Define colors for each trend type
     bg_colors = {
