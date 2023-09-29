@@ -9,6 +9,7 @@ import numpy as np
 import csv
 import os
 import time
+import json
 
 def krakenActive():
     exchange = ccxt.binance({
