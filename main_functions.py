@@ -234,39 +234,6 @@ def plot_labels_high_low(df, label_params, fig):
             fig.add_trace(scatter)
             
 
-# def plot_labels(df, label_params, fig):
-#     label_data = pd.DataFrame()
-
-#     for label, params in label_params.items():
-#         label_df = df[(df['sw_highs'] == label) & df['sw_top']]
-#         label_df.loc[:, 'sw_lows'] = None
-#         label_data = pd.concat([label_data, label_df])
-
-#         label_df = df[(df['sw_lows'] == label) & df['sw_bottom']]
-#         label_df.loc[:, 'sw_highs'] = None
-#         label_data = pd.concat([label_data, label_df])
-
-#     label_data.sort_index(inplace=True)
-
-#     for label, params in label_params.items():
-#         label_data['y_position'] = None
-
-#         label_data.loc[label_data['sw_highs'] == label, 'y_position'] = label_data['High'] + 1800
-#         label_data.loc[label_data['sw_lows'] == label, 'y_position'] = label_data['Low'] - 1800
-
-#         scatter = go.Scatter(
-#             x=label_data.index,
-#             y=label_data['y_position'],
-#             mode='text',
-#             text=label.upper(),
-#             textfont=dict(color=params['color'], size=12),
-#             name=label.upper(),
-#             textposition=params['textposition']
-#         )
-
-#         fig.add_trace(scatter)
-
-#     label_data.drop(columns=['y_position'], inplace=True)
 
 def create_zigzag_trace(df, sw_top_column, sw_bottom_column, uptrend_color, downtrend_color):
     zigzag_x = []
@@ -302,38 +269,6 @@ def create_zigzag_trace(df, sw_top_column, sw_bottom_column, uptrend_color, down
 
     return zigzag_trace
 
-
-def strategy1_Signals(ticker, timeframe, HL = 20, takeLong = True, takeShort = True, risk = 15):
-    df = getdata(ticker, timeframe)
-    df = pd.concat((df,ta.ha(df.Open, df.High, df.Low, df.Close)), axis = 1)
-    df= df.astype(float)
-    df['MinLow'] = df['HA_low'].shift(1).rolling(HL).min()
-    df['MaxHigh'] = df['HA_high'].shift(1).rolling(HL).max()
-    df['shifted_open'] = df.Open.shift(-1)
-    df['buyrisk'] = (df['Close'] - df['MinLow'])/df['Close'] 
-    df['sellrisk'] = (df['MaxHigh'] - df['Close'])/df['Close']
-    # Apply the conditions for buySignal
-    df['buySignal'] = np.where(
-                        (df['HA_close'].shift(1) < df['HA_open'].shift(1)) &
-                        (df['HA_low'] == df['HA_open']) &
-                        (df['HA_low'].shift(1) == df['MinLow']) &
-                        (takeLong == True) &
-                        (df['buyrisk'] < risk/100),
-                        1,
-                        0
-    )
-    df['shortSignal'] = np.where(
-                    (df['HA_close'].shift(1) > df['HA_open'].shift(1)) &
-                    (df['HA_high'] == df['HA_open']) &
-                    (df['HA_high'].shift(1) == df['MaxHigh']) &
-                    (takeShort == True) &
-                    (df['sellrisk'] < risk/100),
-                    -1,
-                    0
-    )
-    return df
-
-
 # code for appending a new row to the trades CSV file
 def csvlog(df, filename):
     headers = ['timestamp','Open','High','Low','Close','Volume', 'buySignal', 'shortSignal']
@@ -367,7 +302,6 @@ def buycsv(df, buyprice,filename):
         profit_percentage = "nan" #((sell_price - buy_price) / buy_price) * 100
         timestamp = df.index[-1]
         writer.writerow([timestamp,buy_price,sell_price,profit_percentage])
-        
 
 
 def sellcsv(df, buyprice, sellprice, filename):
@@ -983,33 +917,36 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=350):
 
     return fig
 
+# def plot_labels(df, label_params, fig):
+#     label_data = pd.DataFrame()
 
-# # update the json files
-# pos = in_pos("BTC")
-# in_position = pos[0]
-# update_dict_value('pos.json', 'btc4h', in_position)
+#     for label, params in label_params.items():
+#         label_df = df[(df['sw_highs'] == label) & df['sw_top']]
+#         label_df.loc[:, 'sw_lows'] = None
+#         label_data = pd.concat([label_data, label_df])
 
-# qty = pos[2]
-# update_dict_value('qty.json', 'btc4h', qty)
+#         label_df = df[(df['sw_lows'] == label) & df['sw_bottom']]
+#         label_df.loc[:, 'sw_highs'] = None
+#         label_data = pd.concat([label_data, label_df])
 
-# trades = exchange.fetch_trades('ETHUSDT')[-2:]
-# print(trades)
+#     label_data.sort_index(inplace=True)
 
+#     for label, params in label_params.items():
+#         label_data['y_position'] = None
 
-# async def get_qty(coin):
-#     balance = exchange.fetch_balance()
-#     qty = [float(item['free']) for item in balance['info']['balances'] if item['asset'] == coin][0]
-#     return qty
+#         label_data.loc[label_data['sw_highs'] == label, 'y_position'] = label_data['High'] + 1800
+#         label_data.loc[label_data['sw_lows'] == label, 'y_position'] = label_data['Low'] - 1800
 
-# async def main():
-#     qty_task = asyncio.create_task(get_qty(coin))
-#     qty_task2 =  asyncio.create_task(getqty(coin))
-#     qty = await qty_task
-#     print(servertime())
-#     qty2 = await qty_task2
-#     print(servertime())
-#     print(qty)
-#     print(f"qty = {qty2}")
+#         scatter = go.Scatter(
+#             x=label_data.index,
+#             y=label_data['y_position'],
+#             mode='text',
+#             text=label.upper(),
+#             textfont=dict(color=params['color'], size=12),
+#             name=label.upper(),
+#             textposition=params['textposition']
+#         )
 
+#         fig.add_trace(scatter)
 
-# asyncio.run(main())
+#     label_data.drop(columns=['y_position'], inplace=True)
