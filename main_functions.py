@@ -577,14 +577,14 @@ def calculate_gann_signals(df, max_sw_cnt):
 
     df["LONG_Signal"] = np.where((df['sw_lows'] == "HL") &
                                  (df['High'] > df['sw_high_price'].shift(1)) &
-                                 (df['High'].shift(1) < df['sw_high_price']) &
+                                 (df['High'].shift(1) < df['sw_high_price']).shift(1) &
                                  (df['trend'].shift(1) == "UNCERTAIN"),
                                  True,
                                  False)
 
     df["SHORT_Signal"] = np.where((df['sw_highs'] == "LH") &
                                   (df['Low'] < df['sw_low_price'].shift(1)) &
-                                  (df['Low'].shift(1) > df['sw_low_price']) &
+                                  (df['Low'].shift(1) > df['sw_low_price'].shift(1)) &
                                   (df['trend'].shift(1) == "UNCERTAIN"),
                                   True,
                                   False)
