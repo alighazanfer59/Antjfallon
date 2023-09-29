@@ -601,7 +601,7 @@ def backtest(df, ticker, commission=0.04/100):
     selldates, sellprices = [], []
 
     for index, row in df.iterrows():
-        # ---------------------------------------------long position block------------------------------
+# ---------------------------------------------long position close check------------------------------
         if in_position and buy_pos:
             sl = row.tsl_long
             if (row.Low <= sl):
@@ -609,15 +609,12 @@ def backtest(df, ticker, commission=0.04/100):
                 sellprices.append(sl)
                 in_position = False
                 buy_pos = False
-
-        elif not in_position and row.LONG_Signal == True:
-            buyprice = row.tsl_short
-            buydates.append(index)
-            buyprices.append(buyprice)
-            in_position = True
-            buy_pos = True
-
-        # --------------------------------------------short position block-------------------------------
+    #         elif in_position and (row.High >= tp):
+    #             selldates.append(index)
+    #             sellprices.append(tp)
+    #             in_position = False
+    #             buy_pos = False
+    # ---------------------------------------------short position close check------------------------------
         elif in_position and sell_pos:
             sl = row.tsl_short
             if (row.High >= sl):
@@ -625,13 +622,32 @@ def backtest(df, ticker, commission=0.04/100):
                 buyprices.append(sl)
                 in_position = False
                 sell_pos = False
+                
+    # ---------------------------------------------long position entry check------------------------------
 
+        elif not in_position and row.LONG_Signal == True:
+            buyprice = row.tsl_short
+            buydates.append(index)
+            buyprices.append(buyprice)
+            in_position = True
+            buy_pos = True
+    #         tp = row.longTP
+
+    # --------------------------------------------short position entry check-------------------------------
+
+            
         elif not in_position and row.SHORT_Signal == True:
             sellprice = row.tsl_long
             selldates.append(index)
             sellprices.append(sellprice)
             in_position = True
             sell_pos = True
+
+    #         elif in_position and (row.Low <= tp):
+    #             buydates.append(index)
+    #             buyprices.append(tp)
+    #             in_position = False
+    #             sell_pos = False
 
     if len(buydates) == 0:
         print(f"No trades were made for {ticker}.")
