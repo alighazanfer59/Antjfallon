@@ -12,22 +12,25 @@ import time
 import json
 
 def krakenActive():
-    exchange = ccxt.binance({
-        # 'apiKey': binanceAPI['apiKey'],
-        # 'secret': binanceAPI['secretKey'],
-        'enableRateLimit': True,
-        'rateLimit': 10000,
-        'options': {
-            # 'recvWindow': 9000,  # replace with your desired recv_window value
-            'test': False,  # use testnet (sandbox) environment
-            # 'adjustForTimeDifference': True,
-        },
-        'futures': {
-            'postOnly': False,  # Change to True if you want to use post-only orders
-            'leverage': 10,     # Set your desired leverage value
-            # You can add more futures-specific options here as needed
-        }
+    exchange = ccxt.krakenfutures({
+        'apiKey': apiKey,
+        'secret': secret,
+        'verbose': False,  # switch it to False if you don't want the HTTP log
     })
+    exchange.set_sandbox_mode(True)  # enable sandbox mode for testnet otherwise set to False
+    #     'enableRateLimit': True,
+    #     'rateLimit': 10000,
+    #     'options': {
+    #         # 'recvWindow': 9000,  # replace with your desired recv_window value
+    #         'test': False,  # use testnet (sandbox) environment
+    #         # 'adjustForTimeDifference': True,
+    #     },
+    #     'futures': {
+    #         'postOnly': False,  # Change to True if you want to use post-only orders
+    #         'leverage': 10,     # Set your desired leverage value
+    #         # You can add more futures-specific options here as needed
+    #     }
+    # })
 
     # Uncomment the line below if you want to enable trading on the testnet (sandbox)
     # exchange.set_sandbox_mode(enable=True)
@@ -404,7 +407,8 @@ def calculate_candle_type(df):
         )
     )
 
-def calculate_gann_signals(df, max_sw_cnt):
+def calculate_gann_signals(df, max_sw_cnt, exit_perc = 80/100):
+    calculate_candle_type(df)
     # Initialize p_cnt with a list containing the initial value (0) for the first row
     p_cnt_values = [0]
 
@@ -575,23 +579,43 @@ def calculate_gann_signals(df, max_sw_cnt):
     df['tsl_long'] = df['sw_low_price'].shift(1)
     df['tsl_short'] = df['sw_high_price'].shift(1)
 
-    df["LONG_Signal"] = np.where((df['sw_lows'] == "HL") &
-                                 (df['High'] > df['sw_high_price'].shift(1)) &
-                                 (df['High'].shift(1) < df['sw_high_price']).shift(1) &
-                                 (df['trend'].shift(1) == "UNCERTAIN"),
-                                 True,
-                                 False)
+    df["LONG_Signal"] = np.where(
+        ((df['sw_lows'] == "HL") | ((df['sw_highs'] == "HH") & (df['sw_lows'] == "HL"))) & 
+        ((df['High'] > df['sw_high_price'].shift(1)) &
+        (df['High'].shift(1) < df['sw_high_price'].shift(1)) &
+        ((df['trend'].shift(1) == "UNCERTAIN") | (df['trend'] == "UP"))),
+        True,
+        False
+    )
 
-    df["SHORT_Signal"] = np.where((df['sw_highs'] == "LH") &
-                                  (df['Low'] < df['sw_low_price'].shift(1)) &
-                                  (df['Low'].shift(1) > df['sw_low_price'].shift(1)) &
-                                  (df['trend'].shift(1) == "UNCERTAIN"),
-                                  True,
-                                  False)
+    df["SHORT_Signal"] = np.where(
+        ((df['sw_highs'] == "LH") | ((df['sw_lows'] == "LL") & (df['sw_highs'] == "LH"))) & 
+        (df['Low'] < df['sw_low_price'].shift(1)) &
+        (df['Low'].shift(1) > df['sw_low_price'].shift(1)) &
+        ((df['trend'].shift(1) == "UNCERTAIN") | (df['trend'] == "DOWN")),  
+        True, 
+        False
+    )
+
+    exit_perc = 80/100 # Percentage for limit order price price calculation --- > streamlit input
+
+    df["Long_Exit"] = np.where((df['sw_highs'] == "LH") & 
+                            (df['sw_trend'].shift(1) == 1.0) &
+                            (df['sw_trend'] == -1.0) &
+                            (df['trend'] == "UNCERTAIN"),  
+                            ((df['sw_high_price'] - df['sw_low_price'])*exit_perc + df['sw_low_price']), 
+                                np.nan)
+
+    df["Short_Exit"] = np.where((df['sw_lows'] == "HL") & 
+                            (df['sw_trend'].shift(1) == -1.0) &
+                            (df['sw_trend'] == 1.0) &
+                            (df['trend'] == "UNCERTAIN"),  
+                            (df['sw_high_price'] - (df['sw_high_price'] - df['sw_low_price'])*exit_perc), 
+                                np.nan)
 
     return df
 
-def backtest(df, ticker, commission=0.04/100):
+def backtest(df, ticker, commission=0.04/100, tp_perc = 0):
     in_position = False
     buy_pos = False
     sell_pos = False
@@ -601,19 +625,29 @@ def backtest(df, ticker, commission=0.04/100):
     selldates, sellprices = [], []
 
     for index, row in df.iterrows():
-# ---------------------------------------------long position close check------------------------------
+    # ---------------------------------------------long position close check------------------------------
         if in_position and buy_pos:
+            
             sl = row.tsl_long
             if (row.Low <= sl):
                 selldates.append(index)
                 sellprices.append(sl)
                 in_position = False
                 buy_pos = False
-    #         elif in_position and (row.High >= tp):
-    #             selldates.append(index)
-    #             sellprices.append(tp)
-    #             in_position = False
-    #             buy_pos = False
+            elif (row.High >= tp) and (tp_perc != 0):
+                selldates.append(index)
+                sellprices.append(tp)
+                in_position = False
+                buy_pos = False
+
+            elif row.Long_Exit > 0:
+                limit = row.Long_Exit
+            elif row.Low <= limit:
+                selldates.append(index)
+                sellprices.append(limit)
+                in_position = False
+                buy_pos = False
+
     # ---------------------------------------------short position close check------------------------------
         elif in_position and sell_pos:
             sl = row.tsl_short
@@ -623,31 +657,44 @@ def backtest(df, ticker, commission=0.04/100):
                 in_position = False
                 sell_pos = False
                 
+            elif (row.High <= tp) and (tp_perc != 0):
+                buyates.append(index)
+                buyprices.append(tp)
+                in_position = False
+                buy_pos = False
+            elif row.Short_Exit > 0:
+                limit = row.Short_Exit
+            elif row.High >= limit:
+                buydates.append(index)
+                buyprices.append(limit)
+                in_position = False
+                buy_pos = False
+                
+    #         print(limit, in_position)
+                
+    # ======================================================================================================              
+                
     # ---------------------------------------------long position entry check------------------------------
-
-        elif not in_position and row.LONG_Signal == True:
-            buyprice = row.tsl_short
-            buydates.append(index)
-            buyprices.append(buyprice)
-            in_position = True
-            buy_pos = True
-    #         tp = row.longTP
-
+        if not in_position:
+            if row.LONG_Signal == True:
+                    buyprice = row.tsl_short
+                    buydates.append(index)
+                    buyprices.append(buyprice)
+                    in_position = True
+                    buy_pos = True
+                    tp = buyprice*(1+tp_perc)
+                    limit = np.nan
     # --------------------------------------------short position entry check-------------------------------
 
-            
-        elif not in_position and row.SHORT_Signal == True:
-            sellprice = row.tsl_long
-            selldates.append(index)
-            sellprices.append(sellprice)
-            in_position = True
-            sell_pos = True
-
-    #         elif in_position and (row.Low <= tp):
-    #             buydates.append(index)
-    #             buyprices.append(tp)
-    #             in_position = False
-    #             sell_pos = False
+            elif row.SHORT_Signal == True:
+                    sellprice = row.tsl_long
+                    selldates.append(index)
+                    sellprices.append(sellprice)
+                    in_position = True
+                    sell_pos = True
+                    tp = sellprice*(1-tp_perc)
+                    limit = np.nan
+                    
 
     if len(buydates) == 0:
         print(f"No trades were made for {ticker}.")
