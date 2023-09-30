@@ -1,1 +1,1 @@
-{"symbol": "BTCUSDT", "timeframe": "1day", "max_sw_cnt": 3}
+{"symbol": "BTCUSDT", "timeframe": "1day", "max_sw_cnt": 3, "exit_perc" : 0.08}
