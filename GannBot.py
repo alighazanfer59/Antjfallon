@@ -1,9 +1,6 @@
 import datetime as dt
 import time
 import ccxt
-# import main_functions
-# import importlib
-# importlib.reload(main_functions)
 from kraken_config import *
 from main_functions import *
 import json
@@ -145,6 +142,8 @@ print('Short Position', short_position)
 print('Order Triggered', order_triggered)
 print('is Hit?', is_hit)
 
+tp_perc = 0 if tp_exit == False else tp_value  # added
+
 while True:
     try:
         # Fetch the latest candlestick data
@@ -154,7 +153,7 @@ while True:
             # Get the latest closing price
             close_price = df['Close'].iloc[-1]
 
-            df = calculate_gann_signals(df, max_sw_cnt)
+            df = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc)
             # Fetch the latest buy and sell signals, as well as stop loss levels, from your DataFrame 'df'
             row = df.iloc[-1]  # Assuming the last row contains the latest data
 
