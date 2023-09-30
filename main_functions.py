@@ -658,7 +658,7 @@ def backtest(df, ticker, commission=0.04/100, tp_perc = 0):
                 sell_pos = False
                 
             elif (row.High <= tp) and (tp_perc != 0):
-                buyates.append(index)
+                buydates.append(index)
                 buyprices.append(tp)
                 in_position = False
                 buy_pos = False
