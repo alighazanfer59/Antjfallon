@@ -69,6 +69,11 @@ st.write(f"Number of days since start date: {day} days")
 # Input Parameter for max_sw_cnt
 max_sw_cnt = st.number_input("Enter max_sw_cnt:", min_value=1, value=3)
 
+exit_perc = 80/100 # Percentage for limit order price price calculation --- > streamlit input
+tp_exit = False  #----> streamlit input
+tp_value = 38/100 #----> streamlit input
+tp_perc = 0 if tp_exit == False else tp_value
+
 # Create a "Calculate" button
 calculate_button = st.button("Backtest and Display Trades")
 
@@ -76,9 +81,9 @@ if calculate_button:
     df = getdata(sel_ticker, mapped_timeframe, day)
     # Calculate Signals:
     calculate_candle_type(df)
-    dfs = calculate_gann_signals(df, max_sw_cnt)
+    dfs = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc)
     # st.write(dfs)
-    results_data = backtest(dfs, sel_ticker, commission=0.04/100)
+    results_data = backtest(dfs, sel_ticker, commission=0.04/100, tp_perc = tp_perc)
     # st.write(results_data)
     dfr = displayTrades(**results_data)
     st.subheader('Trades Data')
