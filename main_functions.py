@@ -1,6 +1,6 @@
 import ccxt
 import streamlit as st
-# from naoranaConfig import binanceAPI
+from kraken_config import *
 import plotly.graph_objects as go
 from plotly.offline import init_notebook_mode, iplot
 import pandas as pd
