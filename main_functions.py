@@ -76,14 +76,19 @@ def place_sell_order(symbol, size):
     return sellId
     # except:
     #     return False
-    
+
 def calculate_order_size(symbol, usdt_amount):
     # Get the current market price of the coin
     ticker = exchange.fetch_ticker(symbol)
     price = ticker['last']
     # Calculate the order size based on the USDT amount and the market price
     size = usdt_amount / price
-    return size
+    print(size)
+    amount = round(size, 3)  # Round to 8 decimal places
+
+    print('Order Size:', amount)
+    
+    return amount
 
 
 
@@ -275,22 +280,21 @@ def create_zigzag_trace(df, sw_top_column, sw_bottom_column, uptrend_color, down
 
 # code for appending a new row to the trades CSV file
 def csvlog(df, filename):
-    headers = ['timestamp','Open','High','Low','Close','Volume', 'buySignal', 'shortSignal']
+    headers = df.columns.tolist()
     
     if not os.path.isfile(filename):
         with open(filename, mode='w') as file:
             writer = csv.writer(file)
             writer.writerow(headers)
 
-
     with open(filename, mode='a', newline='') as file:
         writer = csv.writer(file)
         timestamp = df.index[-1]
-        row_to_write = [timestamp] + df.iloc[-2].tolist()
+        row_to_write = [timestamp] + [df[column].iloc[-1] for column in headers]
         writer.writerow(row_to_write)
 
 # code for appending a new row to the trades CSV file
-def buycsv(df, buyprice,filename):
+def buycsv(df, buyprice, sellprice, filename):
     headers = ['timestamp', 'buyprice', 'sellprice', 'profit%']
     
     if not os.path.isfile(filename):
@@ -302,7 +306,7 @@ def buycsv(df, buyprice,filename):
     with open(filename, mode='a', newline='') as file:
         writer = csv.writer(file)
         buy_price = buyprice # replace with actual buy price
-        sell_price =  "position still open"# replace with actual sell price
+        sell_price =  sellprice# replace with actual sell price
         profit_percentage = "nan" #((sell_price - buy_price) / buy_price) * 100
         timestamp = df.index[-1]
         writer.writerow([timestamp,buy_price,sell_price,profit_percentage])
@@ -342,13 +346,21 @@ def in_pos(coin):
     return in_position, balance, asset
 
 
-def read_buyprice(filename):
+def read_tradefile(filename, position_type):
     try:
         trades = pd.read_csv(filename)
-        buyprice = trades['buyprice'].iloc[-1]
+        if position_type == 'long':
+            price_column = 'buyprice'
+        elif position_type == 'short':
+            price_column = 'sellprice'
+        else:
+            raise ValueError("Invalid position_type. Use 'long' or 'short'.")
+
+        price = trades[price_column].iloc[-1]
     except:
-        buyprice = np.nan
-    return buyprice
+        price = np.nan
+    return price
+
 
 def update_dict_value(filename, key, value):
     with open(filename, 'r') as f:
@@ -381,6 +393,116 @@ def map_timeframe(resolution, get_value=True):
         # If you want to reverse map from value to resolution, you can do this:
         reverse_mapping = {v: k for k, v in tf_mapping.items()}
         return reverse_mapping.get(resolution, '1day')  # Default to '1day' if not found
+
+def calculate_balance(exchange, currency_code, percentage=0.20):
+    try:
+        # Fetch the balance from the exchange
+        balance = exchange.fetch_balance()
+        # Extract the free balance for the specified currency
+        free_balance = balance[currency_code]['free']
+        # Calculate the amount to use (20% of free balance)
+        amount_to_use = free_balance * percentage
+        # Extract the BTC free balance
+        btc_free_balance = balance['BTC']['free']
+        # Return the results
+        return amount_to_use, free_balance, btc_free_balance
+
+    except (KeyError, ccxt.BaseError) as e:
+        # Handle errors, such as currency code not found or exchange fetch_balance error
+        print(f"An error occurred: {e}")
+        return None, None, None
+
+def place_market_order(symbol, usdt_amount, tp_perc, order_type, position_type):
+    global in_position, buy_pos, sell_pos  # Ensure we modify the global variables
+
+    # Determine position size
+    amount = calculate_order_size(symbol, usdt_amount)
+    # amount = round(position_size, 3)
+
+    try:
+        if order_type == 'buy':
+            response = exchange.create_market_buy_order(
+                symbol=symbol,
+                amount=amount
+            )
+            buy_pos = True  # Set buy_pos to True for Long
+        else:
+            response = exchange.create_market_sell_order(
+                symbol=symbol,
+                amount=amount
+            )
+            sell_pos = True  # Set sell_pos to True for Short
+
+        # Extract order information
+        order_id = response['info']['order_id']
+        price = float(response['price'])
+        amount = float(response['amount'])
+        side = response['side']
+
+        print(f"Order ID: {order_id}")
+        print(f"{order_type.capitalize()} Price: {price}")
+        print(f"Amount: {amount}")
+        print(f"Side: {side}")
+
+        in_position = True
+        tp = price * (1 + tp_perc) if order_type == 'buy' else price * (1 - tp_perc)
+        limit = np.nan
+
+        print(f"Market {order_type.capitalize()} Order Placed at Market Price")
+        print(response)
+
+        # Save the order information
+        order_info = {
+            'order_id': order_id,
+            'buyprice' if order_type == 'buy' else 'sellprice': price,
+            'amount': amount,
+            'side': side,
+            'tp': tp,
+            'limit': limit
+        }
+        with open('order_info.json', 'w') as order_file:
+            json.dump(order_info, order_file)
+    except ccxt.BaseError as e:
+        print("An error occurred:", e)
+
+# Define a function to close a position
+def close_position(symbol, amount, order_type, position_type, limit=None):
+    try:
+        if order_type == 'buy':
+            response = exchange.create_market_sell_order(
+                symbol=symbol,
+                amount=amount
+            )
+        else:
+            response = exchange.create_market_buy_order(
+                symbol=symbol,
+                amount=amount
+            )
+
+        # Extract the required information
+        order_id = response['info']['order_id']
+        price = float(response['price'])
+        amount = float(response['amount'])
+        side = response['side']
+
+        print(f"Order ID: {order_id}")
+        print(f"Price: {price}")
+        print(f"Amount: {amount}")
+        print(f"Side: {side}")
+
+        print(f"{position_type.capitalize()} Position Closed at Market Price")
+
+        # Save the order information
+        order_info = {
+            'order_id': order_id,
+            'price': price,
+            'amount': amount,
+            'side': side
+        }
+        with open('order_info.json', 'w') as order_file:
+            json.dump(order_info, order_file)
+    except ccxt.BaseError as e:
+        print("An error occurred:", e)
 
 def calculate_candle_type(df):
     df['candle_type'] = np.where(
@@ -724,7 +846,7 @@ def backtest(df, ticker, commission=0.04/100, tp_perc = 0):
         'sellprices': sellprices,
         'profits': profits,
         # Other results...
-    }
+    }, results_df
 
 
 def displayTrades(**kwargs):
