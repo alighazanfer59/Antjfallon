@@ -151,7 +151,7 @@ try:
         # Get the latest closing price
         close_price = df['Close'].iloc[-1]
 
-        df = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc)
+        df = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc/100)
         # Fetch the latest buy and sell signals, as well as stop loss levels, from your DataFrame 'df'
         row = df.iloc[-1]  # Assuming the last row contains the latest data
 
