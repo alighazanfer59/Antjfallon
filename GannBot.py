@@ -5,6 +5,10 @@ from kraken_config import *
 from main_functions import *
 import json
 import os
+import warnings
+
+# Filter out the FutureWarning
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 exchange = ccxt.krakenfutures({
         'apiKey': apiKey,
@@ -104,18 +108,19 @@ time.sleep(5)
 for key, value in params.items():
     # Create variables with the key as the variable name using globals()
     globals()[key] = value
-    print(key)
+    print("%s : %s" % (key, value))
 
 currency_code = 'USD'  # Replace with the desired currency code
-amount_to_use, usd_free_balance, btc_free_balance = calculate_amount_to_use(exchange, currency_code)
+amount_to_use, usd_free_balance, btc_free_balance = calculate_balance(exchange, currency_code)
 
 interval = map_timeframe(timeframe, get_value=True)
 symbol = symbol_mapping.get(symbol)
-print('Symbol imported and mapped to kraken: ', symbol)
+print('Symbol imported and mapped to Kraken Exchange: ', symbol)
 ticker = symbol[:-4]
 print('ticker: ', ticker)
 # Define trading variables
 usdt_amount = amount_to_use # 20% amount available balance of client account
+print("Balance to Use: ", usdt_amount)
 timeframe = interval
 in_position = False
 
@@ -142,11 +147,17 @@ print('Short Position', sell_pos)
 
 
 tp_perc = 0 if tp_exit == False else tp_value  # added
+print('tp perc: ', tp_perc)
 
 try:
-    # Fetch the latest candlestick data
-    df = getdata_kraken(ticker, timeframe, 1000)
+    try:
+        # Fetch the latest candlestick data
+        df = getdata_kraken(ticker, timeframe, 1000)
 
+    except Exception as e:
+        # Handle exceptions raised by getdata_kraken
+        print(f"An error occurred while fetching data: {e}")
+        
     if len(df) > 0:
         # Get the latest closing price
         close_price = df['Close'].iloc[-1]
@@ -157,13 +168,16 @@ try:
 
         # Inside the 'if in_position:' block
         if in_position:
+            print("IN POSITION BLOCK")
             sl_long = row.tsl_long
             sl_short = row.tsl_short
             amount = info['amount']
+            print('Side: ', amount)
             tp = info['tp']
             limit = info['limit']
 
             if buy_pos:
+                print('Long Position Block')
                 if row['Low'] <= sl_long:
                     close_position(symbol, amount, 'buy', 'Long', sl_long)
                     in_position = False
@@ -194,6 +208,7 @@ try:
                         info = json.loads(json_order_info)
                         sellcsv(df, buyprice=read_tradefile(tradesfile, 'long'), sellprice=info['price'], filename=tradesfile)
             elif sell_pos:
+                print('Short Position Block')
                 if row['High'] >= sl_short:
                     close_position(symbol, amount, 'sell', 'Short', sl_short)
                     in_position = False
@@ -226,7 +241,9 @@ try:
 
         # Inside the 'if not in_position:' block
         elif not in_position:
+            print('Not In Position Block')
             if row['LONG_Signal']:
+                print('Get Long Signal, Taking Long Position')
                 # Place a market buy order for a long position
                 place_market_order(symbol, usdt_amount, tp_perc, 'buy', 'long')
                 with open('order_info.json', 'r') as f:
@@ -236,6 +253,7 @@ try:
                 info = json.loads(json_order_info)
                 buyCSV(df, buyprice=info['buyprice'], sellprice=0, filename=tradesfile)
             elif row['SHORT_Signal']:
+                print('Get Short Signal, Taking Short Position')
                 # Place a market sell order for a short position
                 place_market_order(symbol, usdt_amount, tp_perc, 'sell', 'short')
                 with open('order_info.json', 'r') as f:
@@ -244,7 +262,9 @@ try:
                 # Convert the JSON data back to a dictionary
                 info = json.loads(json_order_info)
                 buyCSV(df, buyprice=0, sellprice=info['sellprice'], filename=tradesfile)
-    csvlog(df, logfile)
+            else:
+                print('No Signals receive, Exiting')
+        csvlog(df, logfile)
 except Exception as ex:
     print("An error occurred:", ex)
 
@@ -257,3 +277,4 @@ state = {
 
 with open('flag_status.json', 'w') as state_file:
     json.dump(state, state_file)
+print("========================================== End of Code ============================================")
