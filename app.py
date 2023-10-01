@@ -44,7 +44,7 @@ with st.sidebar:
     max_sw_cnt = st.number_input("Enter max_sw_cnt:", min_value=1, value=3)
 
     # Exit Percentage
-    exit_perc = st.number_input("Exit Percentage:", min_value=0.0, max_value=1.0, value=0.8)
+    exit_perc = st.number_input("Exit Percentage:", min_value=0.0, max_value=1.0, value=80)
 
     # Take Profit Exit Checkbox and Value
     tp_exit = st.checkbox("Take Profit Exit")
@@ -113,7 +113,7 @@ if calculate_button:
     st.session_state.df = df
     # Calculate Signals:
     calculate_candle_type(df)
-    dfs = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc)
+    dfs = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc/100)
     st.session_state.dfs = dfs
     # st.write(dfs)
     results_data, result_df = backtest(dfs, sel_ticker, commission=0.04/100, tp_perc = tp_value)
