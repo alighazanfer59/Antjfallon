@@ -447,7 +447,8 @@ def place_market_order(symbol, usdt_amount, tp_perc, order_type, position_type):
         in_position = True
         tp = price * (1 + tp_perc) if order_type == 'buy' else price * (1 - tp_perc)
         limit = np.nan
-
+        status = "In Position"
+        
         print(f"Market {order_type.capitalize()} Order Placed at Market Price")
         print(response)
 
@@ -458,7 +459,9 @@ def place_market_order(symbol, usdt_amount, tp_perc, order_type, position_type):
             'amount': amount,
             'side': side,
             'tp': tp,
-            'limit': limit
+            'limit': limit,
+            'status': status,
+            'position_type': position_type
         }
         with open('order_info.json', 'w') as order_file:
             json.dump(order_info, order_file)
@@ -497,7 +500,9 @@ def close_position(symbol, amount, order_type, position_type, limit=None):
             'order_id': order_id,
             'price': price,
             'amount': amount,
-            'side': side
+            'side': side,
+            'status': 'Closed',
+            'position_type': position_type
         }
         with open('order_info.json', 'w') as order_file:
             json.dump(order_info, order_file)
@@ -744,7 +749,7 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100):
 
     return df
 
-def backtest(df, ticker, commission=0.04/100, tp_perc = 0):
+def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0):
     in_position = False
     buy_pos = False
     sell_pos = False
@@ -805,24 +810,24 @@ def backtest(df, ticker, commission=0.04/100, tp_perc = 0):
                 
     # ---------------------------------------------long position entry check------------------------------
         if not in_position:
-            if row.LONG_Signal == True:
-                    buyprice = row.tsl_short
-                    buydates.append(index)
-                    buyprices.append(buyprice)
-                    in_position = True
-                    buy_pos = True
-                    tp = buyprice*(1+tp_perc)
-                    limit = np.nan
-    # --------------------------------------------short position entry check-------------------------------
+            if direction in ("Both", "Long") and row.LONG_Signal:
+                buyprice = row.tsl_short
+                buydates.append(index)
+                buyprices.append(buyprice)
+                in_position = True
+                buy_pos = True
+                tp = buyprice * (1 + tp_perc)
+                limit = np.nan
 
-            elif row.SHORT_Signal == True:
-                    sellprice = row.tsl_long
-                    selldates.append(index)
-                    sellprices.append(sellprice)
-                    in_position = True
-                    sell_pos = True
-                    tp = sellprice*(1-tp_perc)
-                    limit = np.nan
+            elif direction in ("Both", "Short") and row.SHORT_Signal:
+                sellprice = row.tsl_long
+                selldates.append(index)
+                sellprices.append(sellprice)
+                in_position = True
+                sell_pos = True
+                tp = sellprice * (1 - tp_perc)
+                limit = np.nan
+
                     
 
     if len(buydates) == 0:
@@ -856,7 +861,8 @@ def backtest(df, ticker, commission=0.04/100, tp_perc = 0):
     }, results_df
 
 
-def displayTrades(**kwargs):
+def displayTrades(direction="Both", **kwargs):
+    st.write('Direction: ', direction)
     # Access the trade data and other results from kwargs
     buydates = kwargs['buydates']
     buyprices = kwargs['buyprices']
@@ -864,18 +870,33 @@ def displayTrades(**kwargs):
     sellprices = kwargs['sellprices']
     profits = kwargs['profits']
 
-    ct = min(len(buydates),len(selldates))
-    dfr =pd.DataFrame()
-    dfr['buydates']= buydates[:ct]
-    dfr['buyprice']= buyprices[:ct]
+    ct = min(len(buydates), len(selldates))
+    
+    # Create a DataFrame to store the trades
+    dfr = pd.DataFrame()
+    dfr['buydates'] = buydates[:ct]
+    dfr['buyprice'] = buyprices[:ct]
     dfr['selldates'] = selldates[:ct]
     dfr['sellprice'] = sellprices[:ct]
     dfr['profits'] = (profits[:ct])
     dfr['commulative_returns'] = ((pd.Series(profits) + 1).cumprod())
+    
+    # Filter trades based on the selected direction
+    if direction == "Both":
+        pass  # Keep all trades
+    elif direction == "Long":
+        dfr = dfr[dfr['buydates'] < dfr['selldates']]
+    elif direction == "Short":
+        dfr = dfr[dfr['buydates'] > dfr['selldates']]
+    
+    # Add a column to indicate the trade side
     dfr['tradeSide'] = np.where(dfr['buydates'] < dfr['selldates'], 'Long', 'Short')
+    
     return dfr
 
-def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=350):
+
+
+def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=300):
     # Determine the desired y-axis range based on your data
     y_min = df['Low'].min()  # Replace 'Low' with the appropriate column name
     y_max = df['High'].max()  # Replace 'High' with the appropriate column name

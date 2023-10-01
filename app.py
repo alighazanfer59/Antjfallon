@@ -40,6 +40,9 @@ st.title("Advanced Gann Swing Strategy")
 with st.sidebar:
     st.subheader('Input Parameters')
     
+    # Input Parameter for Direction
+    direction = st.radio("Select Direction:", ["Both", "Short", "Long"], index=0)  # "Both" is the default value
+
     # Input Parameter for max_sw_cnt
     max_sw_cnt = st.number_input("Enter max_sw_cnt:", min_value=1, value=3)
 
@@ -87,7 +90,8 @@ final_params_dict = {
     "max_sw_cnt": max_sw_cnt,
     "exit_perc": exit_perc,
     "tp_exit": tp_exit,
-    "tp_value": tp_value
+    "tp_value": tp_value,
+    "direction": direction  # Add the "direction" parameter to the dictionary
 }
 
 # Define a function to initialize the session state
@@ -116,10 +120,10 @@ if calculate_button:
     dfs = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc/100)
     st.session_state.dfs = dfs
     # st.write(dfs)
-    results_data, result_df = backtest(dfs, sel_ticker, commission=0.04/100, tp_perc = tp_value)
+    results_data, result_df = backtest(dfs, sel_ticker, direction, commission=0.04/100, tp_perc = tp_value)
     st.session_state.result_df = result_df
     # st.write(results_data)
-    dfr = displayTrades(**results_data)
+    dfr = displayTrades(direction, **results_data)
     st.session_state.dfr = dfr
     st.subheader('Trades Data')
     st.write(dfr)
@@ -131,7 +135,7 @@ if calculate_button:
     st.plotly_chart(fig)
 
 # Create a button to copy the parameters to a JSON file
-if st.button("Copy Optimized Parameters to JSON File"):
+if st.button("Copy Optimized Parameters to Bot"):
     # Display the stored data
     if st.session_state.result_df is not None:
         st.subheader("Backtest Results:")
@@ -149,5 +153,5 @@ if st.button("Copy Optimized Parameters to JSON File"):
         json.dump(final_params_dict, f)
 
     # Display a success message
-    st.success("Optimized parameters copied to the JSON file!")
+    st.success("Optimized parameters copied to the Bot Successfully!")
     st.write(final_params_dict)
