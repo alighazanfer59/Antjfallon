@@ -44,7 +44,7 @@ with st.sidebar:
     max_sw_cnt = st.number_input("Enter max_sw_cnt:", min_value=1, value=3)
 
     # Exit Percentage
-    exit_perc = st.number_input("Exit Percentage:", min_value=0.0, max_value=1.0, value=80)
+    exit_perc = st.number_input("Exit Percentage:", min_value=0.0, max_value=100.0, value=80.0)
 
     # Take Profit Exit Checkbox and Value
     tp_exit = st.checkbox("Take Profit Exit")

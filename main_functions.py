@@ -529,7 +529,7 @@ def calculate_candle_type(df):
         )
     )
 
-def calculate_gann_signals(df, max_sw_cnt, exit_perc = 80/100):
+def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100):
     calculate_candle_type(df)
     # Initialize p_cnt with a list containing the initial value (0) for the first row
     p_cnt_values = [0]
@@ -581,15 +581,15 @@ def calculate_gann_signals(df, max_sw_cnt, exit_perc = 80/100):
 
     # Create mask1 and mask2
     mask1 = (
-        ((df['sw_cnt'] == -3) |
+        ((df['sw_cnt'] == -(max_sw_cnt)) |
          ((df['sw_cnt'] == 1) & (df['candle_type'] == 'outside_dn_up'))) &
-        (df['sw_cnt'].shift(1) == -2)  # & (df['sw_trend'].shift(1) != df['sw_trend'])
+        (df['sw_cnt'].shift(1) == -(max_sw_cnt-1))  # & (df['sw_trend'].shift(1) != df['sw_trend'])
     )
 
     mask2 = (
-        ((df['sw_cnt'] == 3) |
+        ((df['sw_cnt'] == (max_sw_cnt)) |
          ((df['sw_cnt'] == -1) & (df['candle_type'] == 'outside_up_dn'))) &
-        (df['sw_cnt'].shift(1) == 2)  # & (df['sw_trend'].shift(1) != df['sw_trend'])
+        (df['sw_cnt'].shift(1) == (max_sw_cnt-1))  # & (df['sw_trend'].shift(1) != df['sw_trend'])
     )
 
     # Update sw_trend based on mask1 and mask2
@@ -616,9 +616,6 @@ def calculate_gann_signals(df, max_sw_cnt, exit_perc = 80/100):
     df['sw_top'] = False
     df['sw_bottom'] = False
 
-    # Create mask1 and mask2
-    # mask1 = ((df['sw_cnt'] == -3) & (df['sw_cnt'].shift(1) == -2) & (df['sw_trend'].shift(1) != df['sw_trend']))
-    # mask2 = ((df['sw_cnt'] == 3) & (df['sw_cnt'].shift(1) == 2) & (df['sw_trend'].shift(1) != df['sw_trend']))
     # Calculate the maximum High value of past n candles when mask1 is true
     for i in range(len(df)):
         if mask1[i] & (df['sw_trend'].iloc[i - 1] != df['sw_trend'].iloc[i]):
@@ -697,6 +694,16 @@ def calculate_gann_signals(df, max_sw_cnt, exit_perc = 80/100):
 
     # Update the original DataFrame with the filled columns
     df = pd.concat([df, df_ffill[columns_to_copy]], axis=1)
+
+    df['trend'] = np.where(
+                              ((df['sw_lows'] == 'HL') & (df['High'] > df['sw_high_price'])),
+                               "UP",
+                               np.where(((df['sw_highs'] == 'LH') & (df['Low'] < df['sw_low_price'])),
+                                        "DOWN",
+                                        df['trend']
+                                       )
+                            )
+    # df['trend'].fillna(method='ffill', inplace=True)
 
     df['tsl_long'] = df['sw_low_price'].shift(1)
     df['tsl_short'] = df['sw_high_price'].shift(1)
