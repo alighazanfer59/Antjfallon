@@ -82,19 +82,20 @@ symbol_mapping = {
     'NEARUSDT': 'NEAR/USD:USD'
 }
 
+# Define your trade records filename
+tradesfile = 'agss_tradesHistory.csv'
+logfile = "strategy1_log.csv"
+
 # Load the JSON data from the file
-with open('pos.json', 'r') as f:
-    json_pos = f.read()
-with open('qty.json', 'r') as f:
-    json_qty = f.read()
+# with open('qty.json', 'r') as f:
+#     json_qty = f.read()
 with open('optimized_params.json', 'r') as f:
     json_params = f.read()
 with open('order_info.json', 'r') as f:
     json_order_info = f.read()
 
 # Convert the JSON data back to a dictionary
-pos = json.loads(json_pos)
-qty = json.loads(json_qty)
+# qty = json.loads(json_qty)
 info = json.loads(json_order_info)
 params = json.loads(json_params)
 
@@ -105,15 +106,18 @@ for key, value in params.items():
     globals()[key] = value
     print(key)
 
+currency_code = 'USD'  # Replace with the desired currency code
+amount_to_use, usd_free_balance, btc_free_balance = calculate_amount_to_use(exchange, currency_code)
+
 interval = map_timeframe(timeframe, get_value=True)
 symbol = symbol_mapping.get(symbol)
+print('Symbol imported and mapped to kraken: ', symbol)
 ticker = symbol[:-4]
+print('ticker: ', ticker)
 # Define trading variables
-usdt_amount = 15 # whatever amount client wants
+usdt_amount = amount_to_use # 20% amount available balance of client account
 timeframe = interval
 in_position = False
-buy_price = 0
-stop_loss_price = 0
 
 # Check if the state file exists
 if os.path.exists('flag_status.json'):
@@ -125,177 +129,131 @@ else:
     state = {
         'in_position': False,
         'buy_pos': False,
-        'sell_pos': False,
-        'order_triggered': None,
-        'is_hit': None,
+        'sell_pos': False
         }
 
 in_position = state['in_position']
 buy_pos = state['buy_pos']
-buy_pos = state['buy_pos']
-order_triggered = state['order_triggered']
-is_hit = state['order_triggered']
+sell_pos = state['sell_pos']
 
 print('In Position', in_position)
-print('LOng Position', long_position)
-print('Short Position', short_position)
-print('Order Triggered', order_triggered)
-print('is Hit?', is_hit)
+print('LOng Position', buy_pos)
+print('Short Position', sell_pos)
+
 
 tp_perc = 0 if tp_exit == False else tp_value  # added
 
-while True:
-    try:
-        # Fetch the latest candlestick data
-        df = getdata_kraken(ticker, timeframe, 1000)
+try:
+    # Fetch the latest candlestick data
+    df = getdata_kraken(ticker, timeframe, 1000)
 
-        if len(df) > 0:
-            # Get the latest closing price
-            close_price = df['Close'].iloc[-1]
+    if len(df) > 0:
+        # Get the latest closing price
+        close_price = df['Close'].iloc[-1]
 
-            df = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc)
-            # Fetch the latest buy and sell signals, as well as stop loss levels, from your DataFrame 'df'
-            row = df.iloc[-1]  # Assuming the last row contains the latest data
+        df = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc)
+        # Fetch the latest buy and sell signals, as well as stop loss levels, from your DataFrame 'df'
+        row = df.iloc[-1]  # Assuming the last row contains the latest data
 
-            if in_position:
-                # Check for stop loss conditions
-                sl_long = row.tsl_long
-                sl_short = row.tsl_short
-                position_size = info['amount']
-                
-                if buy_pos and row['Low'] <= sl_long:
-                    # Execute a market sell order to close the long position
-                    # Use the Kraken API to place a market sell order for the position_size
-                    order_response =  exchange.create_market_sell_order(symbol, position_size)
-                    # Extract the required information
-                    order_id = order_response['info']['order_id']
-                    price = float(order_response['price'])
-                    amount = float(order_response['amount'])
-                    side = order_response['side']
+        # Inside the 'if in_position:' block
+        if in_position:
+            sl_long = row.tsl_long
+            sl_short = row.tsl_short
+            amount = info['amount']
+            tp = info['tp']
+            limit = info['limit']
 
-                    print(f"Order ID: {order_id}")
-                    print(f"Price: {price}")
-                    print(f"Amount: {amount}")
-                    print(f"Side: {side}")
-                    
+            if buy_pos:
+                if row['Low'] <= sl_long:
+                    close_position(symbol, amount, 'buy', 'Long', sl_long)
                     in_position = False
                     buy_pos = False
-                    print(f"Stop Loss Hit for Long Position. Position Closed at Market Price")
-
-                    # Save the order information
-                    order_info = {
-                        'order_id': order_id,
-                        'price': price,
-                        'amount': amount,
-                        'side': side
-                    }
-                    with open('order_info.json', 'w') as order_file:
-                        json.dump(order_info, order_file)
-
-                elif sell_pos and row['High'] >= sl_short:
-                    # Execute a market buy order to close the short position
-                    # Use the Kraken API to place a market buy order for the position_size
-                    order_response =  exchange.create_market_buy_order(symbol, position_size)
-                    # Extract the required information
-                    order_id = order_response['info']['order_id']
-                    price = float(order_response['price'])
-                    amount = float(order_response['amount'])
-                    side = order_response['side']
-
-                    print(f"Order ID: {order_id}")
-                    print(f"Price: {price}")
-                    print(f"Amount: {amount}")
-                    print(f"Side: {side}")
-                    
+                    with open('order_info.json', 'r') as f:
+                        json_order_info = f.read()
+                    # Convert the JSON data back to a dictionary
+                    info = json.loads(json_order_info)
+                    sellcsv(df, buyprice=read_tradefile(tradesfile, 'long'), sellprice=info['price'], filename=tradesfile)
+                elif row['High'] >= tp and tp_perc != 0:
+                    close_position(symbol, amount, 'buy', 'Long', tp)
+                    in_position = False
+                    buy_pos = False
+                    with open('order_info.json', 'r') as f:
+                        json_order_info = f.read()
+                    # Convert the JSON data back to a dictionary
+                    info = json.loads(json_order_info)
+                    sellcsv(df, buyprice=read_tradefile(tradesfile, 'long'), sellprice=info['price'], filename=tradesfile)
+                elif row['Long_Exit'] > 0:
+                    limit = row['Long_Exit']
+                    if row['Low'] <= limit:
+                        close_position(symbol, amount, 'buy', 'Long', row['Long_Exit'])
+                        in_position = False
+                        buy_pos = False
+                        with open('order_info.json', 'r') as f:
+                            json_order_info = f.read()
+                        # Convert the JSON data back to a dictionary
+                        info = json.loads(json_order_info)
+                        sellcsv(df, buyprice=read_tradefile(tradesfile, 'long'), sellprice=info['price'], filename=tradesfile)
+            elif sell_pos:
+                if row['High'] >= sl_short:
+                    close_position(symbol, amount, 'sell', 'Short', sl_short)
                     in_position = False
                     sell_pos = False
-                    print(f"Stop Loss Hit for Short Position. Position Closed at Market Price")
+                    with open('order_info.json', 'r') as f:
+                        json_order_info = f.read()
+                    # Convert the JSON data back to a dictionary
+                    info = json.loads(json_order_info)
+                    sellcsv(df, buyprice=info['price'], sellprice=read_tradefile(tradesfile, 'short'), filename=tradesfile)
+                elif row['High'] <= tp and tp_perc != 0:
+                    close_position(symbol, amount, 'sell', 'Short', tp)
+                    in_position = False
+                    sell_pos = False
+                    with open('order_info.json', 'r') as f:
+                        json_order_info = f.read()
+                    # Convert the JSON data back to a dictionary
+                    info = json.loads(json_order_info)
+                    sellcsv(df, buyprice=info['price'], sellprice=read_tradefile(tradesfile, 'short'), filename=tradesfile)
+                elif row['Short_Exit'] > 0:
+                    limit = row['Short_Exit']
+                    if row['High'] >= limit:
+                        close_position(symbol, amount, 'sell', 'Short', row['Short_Exit'])
+                        in_position = False
+                        buy_pos = False
+                        with open('order_info.json', 'r') as f:
+                            json_order_info = f.read()
+                        # Convert the JSON data back to a dictionary
+                        info = json.loads(json_order_info)
+                        sellcsv(df, buyprice=info['price'], sellprice=read_tradefile(tradesfile, 'short'), filename=tradesfile)
 
-                    # Save the order information
-                    order_info = {
-                        'order_id': order_id,
-                        'price': price,
-                        'amount': amount,
-                        'side': side
-                    }
-                    with open('order_info.json', 'w') as order_file:
-                        json.dump(order_info, order_file)
+        # Inside the 'if not in_position:' block
+        elif not in_position:
+            if row['LONG_Signal']:
+                # Place a market buy order for a long position
+                place_market_order(symbol, usdt_amount, tp_perc, 'buy', 'long')
+                with open('order_info.json', 'r') as f:
+                    json_order_info = f.read()
 
-            elif not in_position:
-                if row['LONG_Signal']:
-                    # Place a market buy order for a long position
-                    position_size = calculate_order_size(ticker, usdt_amount)
-                    # Use the Kraken API to place a market buy order for the position_size
-                    order_response =  exchange.create_market_buy_order(symbol, position_size)
-                    # Extract the required information
-                    order_id = order_response['info']['order_id']
-                    price = float(order_response['price'])
-                    amount = float(order_response['amount'])
-                    side = order_response['side']
+                # Convert the JSON data back to a dictionary
+                info = json.loads(json_order_info)
+                buyCSV(df, buyprice=info['buyprice'], sellprice=0, filename=tradesfile)
+            elif row['SHORT_Signal']:
+                # Place a market sell order for a short position
+                place_market_order(symbol, usdt_amount, tp_perc, 'sell', 'short')
+                with open('order_info.json', 'r') as f:
+                    json_order_info = f.read()
 
-                    print(f"Order ID: {order_id}")
-                    print(f"Price: {price}")
-                    print(f"Amount: {amount}")
-                    print(f"Side: {side}")
-                    
-                    in_position = True
-                    buy_pos = True
-                    print(f"Market Buy Order Placed at Market Price")
+                # Convert the JSON data back to a dictionary
+                info = json.loads(json_order_info)
+                buyCSV(df, buyprice=0, sellprice=info['sellprice'], filename=tradesfile)
+    csvlog(df, logfile)
+except Exception as ex:
+    print("An error occurred:", ex)
 
-                    # Save the order information
-                    order_info = {
-                        'order_id': order_id,
-                        'price': price,
-                        'amount': amount,
-                        'side': side
-                    }
-                    with open('order_info.json', 'w') as order_file:
-                        json.dump(order_info, order_file)
-
-                elif row['SHORT_Signal']:
-                    # Place a market sell order for a short position
-                    position_size = calculate_order_size(ticker, usdt_amount)
-                    # Use the Kraken API to place a market sell order for the position_size
-                    order_response =  exchange.create_market_sell_order(symbol, position_size)
-                    # Extract the required information
-                    order_id = order_response['info']['order_id']
-                    price = float(order_response['price'])
-                    amount = float(order_response['amount'])
-                    side = order_response['side']
-
-                    print(f"Order ID: {order_id}")
-                    print(f"Price: {price}")
-                    print(f"Amount: {amount}")
-                    print(f"Side: {side}")
-                    
-                    in_position = True
-                    sell_pos = True
-                    print(f"Market Sell Order Placed at Market Price")
-
-                    # Save the order information
-                    order_info = {
-                        'order_id': order_id,
-                        'price': price,
-                        'amount': amount,
-                        'side': side
-                    }
-                    with open('order_info.json', 'w') as order_file:
-                        json.dump(order_info, order_file)
-
-        time.sleep(60)  # Wait for the next candlestick update (adjust as needed)
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        time.sleep(60)  # Wait for the next iteration
-    
-    # Save the updated state to JSON files at the end of the script
-    state = {
-        'in_position': in_position,
-        'buy_pos': buy_pos,
-        'sell_pos': sell_pos,
-        'order_triggered': None,
-        'is_hit': None
+# Save the updated state to JSON files at the end of the script
+state = {
+    'in_position': in_position,
+    'buy_pos': buy_pos,
+    'sell_pos': sell_pos
     }
 
-    with open('flag_status.json', 'w') as state_file:
-        json.dump(state, state_file)
+with open('flag_status.json', 'w') as state_file:
+    json.dump(state, state_file)
