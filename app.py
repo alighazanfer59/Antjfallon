@@ -92,7 +92,8 @@ final_params_dict = {
     "exit_perc": exit_perc,
     "tp_exit": tp_exit,
     "tp_value": tp_value,
-    "direction": direction  # Add the "direction" parameter to the dictionary
+    "direction": direction,  # Add the "direction" parameter to the dictionary
+    "pi_exit": True
 }
 
 # Define a function to initialize the session state
@@ -118,10 +119,10 @@ if calculate_button:
     st.session_state.df = df
     # Calculate Signals:
     calculate_candle_type(df)
-    dfs = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc/100)
+    dfs = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc/100, pi_exit = pi_exit)
     st.session_state.dfs = dfs
     # st.write(dfs)
-    results_data, result_df = backtest(dfs, sel_ticker, direction, commission=0.04/100, tp_perc = tp_value)
+    results_data, result_df = backtest(dfs, sel_ticker, commission=0.04/100, tp_perc = tp_value, direction = direction)
     st.session_state.result_df = result_df
     # st.write(results_data)
     dfr = displayTrades(direction, **results_data)

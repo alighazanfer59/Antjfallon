@@ -534,7 +534,7 @@ def calculate_candle_type(df):
         )
     )
 
-def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100):
+def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, pi_exit = True):
     calculate_candle_type(df)
     # Initialize p_cnt with a list containing the initial value (0) for the first row
     p_cnt_values = [0]
@@ -701,7 +701,7 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100):
     df = pd.concat([df, df_ffill[columns_to_copy]], axis=1)
 
     df['trend'] = np.where(
-                              ((df['sw_lows'] == 'HL') & (df['High'] > df['sw_high_price'])),
+                            ((df['sw_lows'] == 'HL') & (df['High'] > df['sw_high_price'])),
                                "UP",
                                np.where(((df['sw_highs'] == 'LH') & (df['Low'] < df['sw_low_price'])),
                                         "DOWN",
@@ -746,10 +746,22 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100):
                             (df['trend'] == "UNCERTAIN"),  
                             (df['sw_high_price'] - (df['sw_high_price'] - df['sw_low_price'])*exit_perc), 
                                 np.nan)
-
+    
+    df["pi_top"] = np.where(
+                            (df['Open'].rolling(window=111).mean()) > (df['Open'].rolling(window=350).mean() * 2), 
+                            True, 
+                            False
+                            )
+    
+    df["pi_bottom"] = np.where(pi_exit == True &
+                            (df['Close'].rolling(window=550).mean() > df['Close'].rolling(window=250).mean()), 
+                            True, 
+                            False
+                            )
+    
     return df
 
-def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0):
+def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_exit = False):
     in_position = False
     buy_pos = False
     sell_pos = False
@@ -773,7 +785,11 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0):
                 sellprices.append(tp)
                 in_position = False
                 buy_pos = False
-
+            elif (row.pi_top) and (pi_exit):
+                selldates.append(index)
+                sellprices.append(tp)
+                in_position = False
+                buy_pos = False
             elif row.Long_Exit > 0:
                 limit = row.Long_Exit
             elif row.Low <= limit:
@@ -792,6 +808,11 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0):
                 sell_pos = False
                 
             elif (row.High <= tp) and (tp_perc != 0):
+                buydates.append(index)
+                buyprices.append(tp)
+                in_position = False
+                buy_pos = False
+            elif (row.pi_bottom) and (pi_exit):
                 buydates.append(index)
                 buyprices.append(tp)
                 in_position = False

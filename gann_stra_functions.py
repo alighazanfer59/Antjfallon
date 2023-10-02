@@ -1,12 +1,12 @@
 # Function to calculate Pi Cycle signals
-def calculate_pi_cycle_signals(data):
-    pi_ema1 = data['open'].rolling(window=350).mean() * 2
-    pi_ema2 = data['open'].rolling(window=111).mean()
-    pi_ema3 = data['close'].rolling(window=250).mean()
-    pi_ema4 = data['close'].rolling(window=550).mean()
+def calculate_pi_cycle_signals(df):
+    pi_ema1 = df['open'].rolling(window=350).mean() * 2
+    pi_ema2 = df['open'].rolling(window=111).mean()
+    pi_ema3 = df['close'].rolling(window=250).mean()
+    pi_ema4 = df['close'].rolling(window=550).mean()
 
-    pi_top = (pi_ema2 > pi_ema1).astype(int)
-    pi_bot = (pi_ema4 > pi_ema3).astype(int)
+    pi_top = (pi_ema2 > pi_ema1).astype(float)
+    pi_bot = (pi_ema4 > pi_ema3).astype(float)
 
     return pi_top, pi_bot
 
