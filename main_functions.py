@@ -1,6 +1,5 @@
 import ccxt
 import streamlit as st
-from kraken_config import *
 import plotly.graph_objects as go
 from plotly.offline import init_notebook_mode, iplot
 import pandas as pd
@@ -10,36 +9,151 @@ import csv
 import os
 import time
 import json
+import subprocess
+import importlib
+import kraken_config
 
-def krakenActive():
+# If you want to update the module:
+importlib.reload(kraken_config)
+from kraken_config import *
+# def krakenActive():
+#     exchange = ccxt.krakenfutures({
+#         'apiKey': apiKey,
+#         'secret': secret,
+#         'verbose': False,  # switch it to False if you don't want the HTTP log
+#     })
+#     exchange.set_sandbox_mode(True)  # enable sandbox mode for testnet otherwise set to False
+#     #     'enableRateLimit': True,
+#     #     'rateLimit': 10000,
+#     #     'options': {
+#     #         # 'recvWindow': 9000,  # replace with your desired recv_window value
+#     #         'test': False,  # use testnet (sandbox) environment
+#     #         # 'adjustForTimeDifference': True,
+#     #     },
+#     #     'futures': {
+#     #         'postOnly': False,  # Change to True if you want to use post-only orders
+#     #         'leverage': 10,     # Set your desired leverage value
+#     #         # You can add more futures-specific options here as needed
+#     #     }
+#     # })
+
+#     # Uncomment the line below if you want to enable trading on the testnet (sandbox)
+#     # exchange.set_sandbox_mode(enable=True)
+
+#     return exchange
+# Function to set API key and secret in kraken_config.py
+
+# Function to set sandbox_mode in kraken_config.py
+def set_sandbox_mode(sandbox_mode):
+    # Path to your kraken_config.py file
+    config_path = 'kraken_config.py'
+    with open(config_path, 'r') as config_file:
+        config_lines = config_file.readlines()
+
+    with open(config_path, 'w') as config_file:
+        for line in config_lines:
+            if line.startswith('sandbox_mode'):
+                config_file.write(f'sandbox_mode = {sandbox_mode}\n')
+            else:
+                config_file.write(line)
+
+
+def set_api_key_secret(api_key, secret_key, config_path, live_mode=False):
+    with open(config_path, 'r') as config_file:
+        config_lines = config_file.readlines()
+
+    with open(config_path, 'w') as config_file:
+        for line in config_lines:
+            if line.startswith('sandbox_mode'):
+                if live_mode:
+                    config_file.write(f'sandbox_mode = False\n')
+                else:
+                    config_file.write(f'sandbox_mode = True\n')
+            elif line.startswith('live_apiKey'):
+                if live_mode:
+                    config_file.write(f'live_apiKey = \'{api_key}\'\n')
+                else:
+                    config_file.write(f'demo_apiKey = \'{api_key}\'\n')
+            elif line.startswith('live_secret'):
+                if live_mode:
+                    config_file.write(f'live_secret = \'{secret_key}\'\n')
+                else:
+                    config_file.write(f'demo_secret = \'{secret_key}\'\n')
+            else:
+                config_file.write(line)
+
+def get_api_key_secret(config_path, live_mode=False):
+    with open(config_path, 'r') as config_file:
+        config_lines = config_file.readlines()
+        for line in config_lines:
+            if live_mode and line.startswith('live_apiKey'):
+                api_key = line.split('=')[1].strip()
+            elif not live_mode and line.startswith('demo_apiKey'):
+                api_key = line.split('=')[1].strip()
+            if live_mode and line.startswith('live_secret'):
+                secret_key = line.split('=')[1].strip()
+            elif not live_mode and line.startswith('demo_secret'):
+                secret_key = line.split('=')[1].strip()
+    
+    return api_key, secret_key
+
+def check_authentication(exchange):
+    try:
+        balance = exchange.fetch_balance()  # Replace with an actual API request
+        # If the request succeeds, the authentication is correct
+        return True
+
+    except ccxt.AuthenticationError as e:
+        # Handle authentication errors
+        return False
+
+    except ccxt.NetworkError as e:
+        # Handle network errors
+        return False
+
+    except Exception as e:
+        # Handle other exceptions
+        return False
+
+def krakenActive(mode, context="streamlit"):
+    # Set sandbox mode based on the selected mode
+    if mode == "Demo":
+        sandbox_mode = True
+    else:
+        sandbox_mode = False
+
+    # Get the API key and secret based on the selected mode
+    config_path = 'kraken_config.py'
+    live_mode = mode == "Live"
+    api_key, secret_key = get_api_key_secret(config_path, live_mode=live_mode)
+
+    # Configure the ccxt.krakenfutures instance
     exchange = ccxt.krakenfutures({
-        'apiKey': apiKey,
-        'secret': secret,
+        'apiKey': api_key.strip("'"),
+        'secret': secret_key.strip("'"),
         'verbose': False,  # switch it to False if you don't want the HTTP log
     })
-    exchange.set_sandbox_mode(True)  # enable sandbox mode for testnet otherwise set to False
-    #     'enableRateLimit': True,
-    #     'rateLimit': 10000,
-    #     'options': {
-    #         # 'recvWindow': 9000,  # replace with your desired recv_window value
-    #         'test': False,  # use testnet (sandbox) environment
-    #         # 'adjustForTimeDifference': True,
-    #     },
-    #     'futures': {
-    #         'postOnly': False,  # Change to True if you want to use post-only orders
-    #         'leverage': 10,     # Set your desired leverage value
-    #         # You can add more futures-specific options here as needed
-    #     }
-    # })
 
-    # Uncomment the line below if you want to enable trading on the testnet (sandbox)
-    # exchange.set_sandbox_mode(enable=True)
+    # Enable or disable sandbox mode based on the selected mode
+    exchange.set_sandbox_mode(sandbox_mode)
 
-    return exchange
+    # Check if the API key and secret are authenticated
+    if check_authentication(exchange):
+        st.success('Authentication Successful')
+        return exchange
 
-# Example usage
+    else:
+        # Authentication failed
+        error_message = "Authentication failed due to invalid key or secret."
+        if context == "streamlit":
+            st.error(error_message)  # Display the error in Streamlit
+        elif context == "console":
+            print(error_message)  # Print the error to the console
+        return None
 
-exchange = krakenActive()
+
+# st.write('mode is set to : ', mode)
+# exchange = krakenActive(mode)
 
 
 def servertime():
@@ -915,8 +1029,6 @@ def displayTrades(direction="Both", **kwargs):
     
     return dfr
 
-
-
 def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=300):
     # Determine the desired y-axis range based on your data
     y_min = df['Low'].min()  # Replace 'Low' with the appropriate column name
@@ -972,11 +1084,11 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=300):
         showactive=False,
         buttons=[
             dict(label="Show Background Traces",
-                 method="relayout",
-                 args=["shapes", background_shapes]),
+                    method="relayout",
+                    args=["shapes", background_shapes]),
             dict(label="Hide Background Traces",
-                 method="relayout",
-                 args=["shapes", []]),  # Empty list to hide the shapes
+                    method="relayout",
+                    args=["shapes", []]),  # Empty list to hide the shapes
         ],
         x=1.15,  # Adjust the x position to move the button to the right
         y=0.15,   # Adjust the y position to place it below the legends
@@ -1052,25 +1164,25 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=300):
             color = 'blue'
             entry_label = 'SHORT ENTRY'
 
-        # Set the condition for y values based on tradeSide
-        if row['tradeSide'] == 'Long':
-            x_values = [row['buydates'], row['selldates'], row['selldates'], row['buydates']]
-            y_values = [row['buyprice'], row['buyprice'], tsl, tsl]
-            fillcolor = 'rgba(255, 0, 0, 0.3)'  # Red fill for Long
-        else:
-            x_values = [row['selldates'], row['buydates'], row['buydates'], row['selldates']]
-            y_values = [row['sellprice'], row['sellprice'], tsl, tsl]
-            fillcolor = 'rgba(255, 0, 0, 0.3)'  # Red fill for Short
+        # # Set the condition for y values based on tradeSide
+        # if row['tradeSide'] == 'Long':
+        #     x_values = [row['buydates'], row['selldates'], row['selldates'], row['buydates']]
+        #     y_values = [row['buyprice'], row['buyprice'], tsl, tsl]
+        #     fillcolor = 'rgba(255, 0, 0, 0.3)'  # Red fill for Long
+        # else:
+        #     x_values = [row['selldates'], row['buydates'], row['buydates'], row['selldates']]
+        #     y_values = [row['sellprice'], row['sellprice'], tsl, tsl]
+        #     fillcolor = 'rgba(255, 0, 0, 0.3)'  # Red fill for Short
 
-        fig.add_trace(go.Scatter(
-            x=x_values,
-            y=y_values,
-            fill='toself',
-            fillcolor=fillcolor,
-            name=name,
-            mode='none',
-            showlegend=False  # Exclude legend for this trace
-        ))
+        # fig.add_trace(go.Scatter(
+        #     x=x_values,
+        #     y=y_values,
+        #     fill='toself',
+        #     fillcolor=fillcolor,
+        #     name=name,
+        #     mode='none',
+        #     showlegend=False  # Exclude legend for this trace
+        # ))
 
         entry_exit_data = {
             'Long': {
@@ -1125,6 +1237,78 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=300):
                 showlegend=False  # Exclude legend for this trace
             ))
 
+    # Define fill colors
+    fillcolor2 = 'rgba(0, 255, 0, 0.3)'  # Fill color for corresponding polygons of trailing SL till exit entry
+
+    # Plot trades and trailing stop-loss
+    for _, trade in dfr.iterrows():
+        side = trade['tradeSide']
+        entry_date = trade['buydates'] if side == 'Long' else trade['selldates']
+        exit_date = trade['selldates'] if side == 'Long' else trade['buydates']
+        print(f'Entry Date :{entry_date} | Exit Date : {exit_date}')
+        
+        tsl_data = df.loc[(df.index >= entry_date) & (df.index <= exit_date)]
+        tsl_values = tsl_data['tsl_long'] if side == 'Long' else tsl_data['tsl_short']
+        
+        prev_tsl_value = None  # To track the previous value of tsl
+        is_first_polygon = True  # Flag to track the first polygon for each trade
+        
+        # Initialize fillcolor to red for the first polygon
+        fillcolor = 'rgba(255, 0, 0, 0.3)'
+        
+        for date, tsl_value in tsl_values.items():
+            if prev_tsl_value is None:
+                prev_tsl_value = tsl_value
+                initial_sl = min(trade['buyprice'], tsl_value)  # Initial SL from buyprice to min(tsl_long, buyprice)
+                
+                # Add the initial polygon
+                fig.add_shape(
+                    type='rect',
+                    xref='x',
+                    yref='y',
+                    x0=entry_date,
+                    y0=initial_sl,
+                    x1=date,
+                    y1=max(tsl_values),
+                    fillcolor=fillcolor,
+                )
+                
+                continue
+            
+            if tsl_value != prev_tsl_value:
+                # There's a change in tsl_value, end the current polygon
+                fig.add_shape(
+                    type='rect',
+                    xref='x',
+                    yref='y',
+                    x0=entry_date,
+                    y0=initial_sl,
+                    x1=date,
+                    y1=max(tsl_values),
+                    fillcolor=fillcolor,
+                )
+                
+                entry_date = date  # Start a new polygon from the new date
+                prev_tsl_value = tsl_value
+                initial_sl = tsl_value  # Update initial SL for subsequent polygons
+                
+                # Set fillcolor to green for subsequent polygons
+                if is_first_polygon:
+                    fillcolor = 'rgba(0, 255, 0, 0.3)'
+                    is_first_polygon = False
+        
+        # Add the final polygon for the trade
+        fig.add_shape(
+            type='rect',
+            xref='x',
+            yref='y',
+            x0=entry_date,
+            y0=initial_sl,
+            x1=exit_date,
+            y1=max(tsl_values),
+            fillcolor=fillcolor,
+        )
+
     # Enable or disable auto-scaling
     fig.update_layout(autosize=True)  # Auto-scaling enabled (default)
 
@@ -1150,7 +1334,34 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=300):
         # updatemenus=[dict(type="buttons", showactive=False, buttons=[])]
     )
 
+
     return fig
+
+
+# Define a function to open the log file and display its contents
+def open_log_file(log_display):
+    log_file_path = '/home/ubuntu/output_log.txt'
+    try:
+        if st.session_state.show_log:
+            with open(log_file_path, 'r') as log_file:
+                log_contents = log_file.read()
+            log_display.text_area(
+                "Log File Contents:",
+                log_contents,
+                height=400  # Adjust the height as needed
+            )
+        else:
+            log_display.empty()
+    except Exception as e:
+        st.error(f"Error: {e}")
+
+
+# Initialize session state
+def initialize_session_state():
+    if 'show_log' not in st.session_state:
+        st.session_state.show_log = False
+
+
 
 # def plot_labels(df, label_params, fig):
 #     label_data = pd.DataFrame()

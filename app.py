@@ -4,12 +4,25 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import main_functions
+import kraken_config
 import plotly.graph_objects as go
 import importlib
+import subprocess
+import warnings
+
+# Filter out the FutureWarning
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # If you want to update the module:
 importlib.reload(main_functions)
 from main_functions import *
+
+# If you want to update the module:
+importlib.reload(kraken_config)
+from kraken_config import *
+
+
+exchange = krakenActive(mode)
 
 # Initialize notebook mode
 # init_notebook_mode(connected=True)
@@ -57,6 +70,64 @@ with st.sidebar:
         tp_value = st.number_input("Take Profit Percentage:", min_value=0.0, max_value=1.0, value=0.38)
     else:
         tp_value = 0  # No take profit
+
+    # Toggle button to show/hide log file
+    if st.button("Show/Hide Log File"):
+        st.session_state.show_log = not st.session_state.get("show_log", False)
+
+    # Radio button to choose mode (sandbox/demo or live)
+    mode_options = ["Sandbox/Demo", "Live"]
+    mode_choice = st.radio("Select Mode:", mode_options, index=0 if mode == "True" else 1)
+
+    # Example in your Streamlit app
+    if mode_choice == "Sandbox/Demo":
+        set_sandbox_mode(True)
+    elif mode_choice == "Live":
+        set_sandbox_mode(False)
+
+
+    # Get the existing API key and secret from config file
+    config_path = 'kraken_config.py'
+    live_mode = mode_choice == "Live"
+    api_key, secret_key = get_api_key_secret(config_path, live_mode=live_mode)
+
+    if mode_choice == "Sandbox/Demo":
+        st.write("Using Sandbox/Demo Mode")
+    elif mode_choice == "Live":
+        if not api_key or not secret_key:
+            st.warning("Please provide your API key and secret for Live Mode below.")
+            api_key = st.text_input("Enter Live API Key:")
+            secret_key = st.text_input("Enter Live Secret Key:")
+            if st.button("Save Live API Key and Secret"):
+                set_api_key_secret(api_key, secret_key, config_path, live_mode=True)
+                st.success("Live API Key and Secret saved successfully.")
+        else:
+            st.write("Using Live Mode")
+            
+            # Option to change API key and secret for Live Mode
+            if st.checkbox("Change Live API Key and Secret"):
+                st.warning("You can change your Live API key and secret below.")
+                new_api_key = st.text_input("Enter New Live API Key:")
+                new_secret_key = st.text_input("Enter New Live Secret Key:")
+                if st.button("Update Live API Key and Secret"):
+                    set_api_key_secret(new_api_key, new_secret_key, config_path, live_mode=True)
+                    st.success("Live API Key and Secret updated successfully.")
+
+# Main window
+main_display = st.empty()
+
+# Initialize session state
+if 'show_log' not in st.session_state:
+    st.session_state.show_log = False  # Set it to False by default to hide the log file
+
+# Toggle button to open/close the log file
+if st.session_state.show_log:
+    open_log_file(main_display)
+
+# # Toggle button to open/close the log file
+# if st.session_state.show_log:
+#     open_log_file(main_display)
+
 
 # Input Parameters
 sel_ticker = st.selectbox("Select Ticker Symbol:", fut_tickers, index=fut_tickers.index("BTCUSDT"))
@@ -157,3 +228,7 @@ if st.button("Copy Optimized Parameters to Bot"):
     # Display a success message
     st.success("Optimized parameters copied to the Bot Successfully!")
     st.write(final_params_dict)
+
+# # Toggle button to open/close the log file
+# if st.session_state.show_log:
+#     open_log_file(main_display)

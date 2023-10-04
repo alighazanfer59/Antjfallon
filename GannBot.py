@@ -1,21 +1,47 @@
 import datetime as dt
 import time
 import ccxt
-from kraken_config import *
 from main_functions import *
 import json
 import os
 import warnings
+# import importlib
+import kraken_config
+
+# If you want to update the module:
+importlib.reload(kraken_config)
+from kraken_config import *
 
 # Filter out the FutureWarning
 warnings.filterwarnings("ignore", category=FutureWarning)
+# krakenActive(mode, context="console")
+# def krakenActive(mode):
+#     st.write('mode passed to krakenActive: ', mode)
+#     # Set sandbox mode based on the selected mode
+#     if mode == "Demo":
+#         sandbox_mode = True
+#     else:
+#         sandbox_mode = False
+    
+#     # Get the API key and secret based on the selected mode
+#     config_path = 'kraken_config.py'
+#     live_mode = mode == "Live"
+#     api_key, secret_key = get_api_key_secret(config_path, live_mode=live_mode)
 
-exchange = ccxt.krakenfutures({
-        'apiKey': apiKey,
-        'secret': secret,
-        'verbose': False,  # switch it to False if you don't want the HTTP log
-    })
-exchange.set_sandbox_mode(True)  # enable sandbox mode
+#     # Configure the ccxt.krakenfutures instance
+#     exchange = ccxt.krakenfutures({
+#         'apiKey': api_key,
+#         'secret': secret_key,
+#         'verbose': False,  # switch it to False if you don't want the HTTP log
+#     })
+#     st.write('Sandbox mode is set to: ', sandbox_mode)
+#     # Enable or disable sandbox mode based on the selected mode
+#     exchange.set_sandbox_mode(sandbox_mode)
+
+#     return exchange
+
+# st.write('mode is set to : ', mode)
+exchange = krakenActive(mode, 'console')
 
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -241,7 +267,7 @@ try:
 
         # Inside the 'if not in_position:' block
         elif not in_position:
-            print('Not In Position Block')
+            print('In "Not In Position" Block')
             if row['LONG_Signal']:
                 print('Get Long Signal, Taking Long Position')
                 # Place a market buy order for a long position
