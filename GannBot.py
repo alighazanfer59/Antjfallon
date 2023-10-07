@@ -14,34 +14,9 @@ from kraken_config import *
 
 # Filter out the FutureWarning
 warnings.filterwarnings("ignore", category=FutureWarning)
-# krakenActive(mode, context="console")
-# def krakenActive(mode):
-#     st.write('mode passed to krakenActive: ', mode)
-#     # Set sandbox mode based on the selected mode
-#     if mode == "Demo":
-#         sandbox_mode = True
-#     else:
-#         sandbox_mode = False
-    
-#     # Get the API key and secret based on the selected mode
-#     config_path = 'kraken_config.py'
-#     live_mode = mode == "Live"
-#     api_key, secret_key = get_api_key_secret(config_path, live_mode=live_mode)
-
-#     # Configure the ccxt.krakenfutures instance
-#     exchange = ccxt.krakenfutures({
-#         'apiKey': api_key,
-#         'secret': secret_key,
-#         'verbose': False,  # switch it to False if you don't want the HTTP log
-#     })
-#     st.write('Sandbox mode is set to: ', sandbox_mode)
-#     # Enable or disable sandbox mode based on the selected mode
-#     exchange.set_sandbox_mode(sandbox_mode)
-
-#     return exchange
-
+print('Current SandBox Mode is: ', mode)
 # st.write('mode is set to : ', mode)
-exchange = krakenActive(mode, 'console')
+exchange = krakenActive(mode)
 
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.abspath(__file__))
