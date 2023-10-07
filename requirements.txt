@@ -1,0 +1,9 @@
+ccxt==4.0.81
+importlib-metadata==6.8.0
+pandas==2.1.0
+pandas-ta==0.3.14b0
+plotly==5.16.1
+python-binance==1.0.19
+requests==2.31.0
+streamlit==1.27.0
+urllib3==2.0.4

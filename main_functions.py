@@ -115,9 +115,9 @@ def check_authentication(exchange):
         # Handle other exceptions
         return False
 
-def krakenActive(mode, context="streamlit"):
+def krakenActive(mode):
     # Set sandbox mode based on the selected mode
-    if mode == "Demo":
+    if mode == "Sandbox/Demo":
         sandbox_mode = True
     else:
         sandbox_mode = False
@@ -139,17 +139,37 @@ def krakenActive(mode, context="streamlit"):
 
     # Check if the API key and secret are authenticated
     if check_authentication(exchange):
-        st.success('Authentication Successful')
+        # Authentication successful
+        _message = ('Authentication Successful')
+        print(_message)  # Print the error to the console
+            
         return exchange
 
     else:
         # Authentication failed
-        error_message = "Authentication failed due to invalid key or secret."
-        if context == "streamlit":
-            st.error(error_message)  # Display the error in Streamlit
-        elif context == "console":
-            print(error_message)  # Print the error to the console
+        e_message = "Authentication failed due to invalid key or secret."
+        print(e_message)  # Print the error to the console
+        
         return None
+
+# Function to check authentication and display messages
+def check_authentication_and_display(mode_choice):
+    # Create a new instance of the Kraken exchange
+    exchange = krakenActive(mode_choice)
+
+    if exchange:
+        # Authentication successful
+        _message = 'Authentication Successful'
+        success_message = st.success(_message)
+        time.sleep(5)  # Wait for 5 seconds
+        success_message.empty()  # Clear the success message
+    else:
+        # Authentication failed
+        error_message = "Authentication failed due to invalid key or secret."
+        error_message = st.error(error_message)
+        time.sleep(5)  # Wait for 5 seconds
+        error_message.empty()  # Clear the error message
+
 
 
 # st.write('mode is set to : ', mode)
@@ -1030,6 +1050,7 @@ def displayTrades(direction="Both", **kwargs):
     return dfr
 
 def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=300):
+    visible_data_points=300
     # Determine the desired y-axis range based on your data
     y_min = df['Low'].min()  # Replace 'Low' with the appropriate column name
     y_max = df['High'].max()  # Replace 'High' with the appropriate column name
@@ -1105,11 +1126,93 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=300):
     # Determine the number of data points to display by default
     num_data_points = min(len(df), visible_data_points)
 
-    # Create the figure with the candlestick trace and markers (both top and bottom)
-    fig = go.Figure(data=[candlestick, sw_top_markers, sw_bottom_markers, zigzag_trace], layout=layout)
+    # Create a separate list for trailing stop loss shapes
+    tsl_shapes = []
 
-    # Set the x-axis range to display the most recent data points by default
-    fig.update_xaxes(range=[df.index[-num_data_points], df.index[-1]])
+    # Plot trades and trailing stop-loss
+    for _, trade in dfr.iterrows():
+        side = trade['tradeSide']
+        entry_date = trade['buydates'] if side == 'Long' else trade['selldates']
+        exit_date = trade['selldates'] if side == 'Long' else trade['buydates']
+        print(f'Entry Date :{entry_date} | Exit Date : {exit_date} | Position: {side}')
+        
+        tsl_data = df.loc[(df.index >= entry_date) & (df.index <= exit_date)]
+        tsl_values = tsl_data['tsl_long'] if side == 'Long' else tsl_data['tsl_short']
+        
+        prev_tsl_value = None  # To track the previous value of tsl
+        is_first_polygon = True  # Flag to track the first polygon for each trade
+        
+        # Initialize fillcolor to red for the first polygon
+        fillcolor = 'rgba(255, 0, 0, 0.3)'
+        y1 = trade['buyprice'] if side == 'Long' else trade['sellprice']
+        
+        # Create a list to store individual TSL polygons for this trade
+        trade_tsl_shapes = []
+
+        for date, tsl_value in tsl_values.items():
+            if prev_tsl_value is None:
+                prev_tsl_value = tsl_value
+                y0 = tsl_value
+                
+                # Add the initial polygon to the trade_tsl_shapes list
+                trade_tsl_shapes.append(
+                    go.Scatter(
+                        x=[entry_date, date, date, entry_date],
+                        y=[y0, y0, y1, y1],
+                        fill='toself',
+                        fillcolor=fillcolor,
+                        line=dict(color=fillcolor),
+                        mode='lines',
+                        showlegend=False,
+                    )
+                )
+                continue
+            
+            if tsl_value != prev_tsl_value:
+                # There's a change in tsl_value, end the current polygon
+                trade_tsl_shapes.append(
+                    go.Scatter(
+                        x=[entry_date, date, date, entry_date],
+                        y=[y0, y0, tsl_value, tsl_value],
+                        fill='toself',
+                        fillcolor=fillcolor,
+                        line=dict(color=fillcolor),
+                        mode='lines',
+                        showlegend=False,
+                    )
+                )
+                
+                entry_date = date  # Start a new polygon from the new date
+                prev_tsl_value = tsl_value
+                initial_sl = tsl_value  # Update initial SL for subsequent polygons
+                
+                # Set fillcolor to green for subsequent polygons
+                if is_first_polygon:
+                    fillcolor = 'rgba(0, 255, 0, 0.3)'
+                    is_first_polygon = False
+        
+        # After the loop ends, check if the last polygon for entry position needs to be added
+        if y0 != y1:
+            trade_tsl_shapes.append(
+                go.Scatter(
+                    x=[entry_date, exit_date, exit_date, entry_date],
+                    y=[y0, y0, y1, y1],
+                    fill='toself',
+                    fillcolor=fillcolor,
+                    line=dict(color=fillcolor),
+                    mode='lines',
+                    showlegend=False,
+                )
+            )
+
+        # Add the trade_tsl_shapes to tsl_shapes
+        tsl_shapes.extend(trade_tsl_shapes)
+
+
+    fig = go.Figure(
+        data=[candlestick, sw_top_markers, sw_bottom_markers, zigzag_trace] + tsl_shapes,  # Include TSL shapes here
+        layout=layout,
+    )
 
     # Define parameters for each label
     label_params = {
@@ -1164,26 +1267,6 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=300):
             color = 'blue'
             entry_label = 'SHORT ENTRY'
 
-        # # Set the condition for y values based on tradeSide
-        # if row['tradeSide'] == 'Long':
-        #     x_values = [row['buydates'], row['selldates'], row['selldates'], row['buydates']]
-        #     y_values = [row['buyprice'], row['buyprice'], tsl, tsl]
-        #     fillcolor = 'rgba(255, 0, 0, 0.3)'  # Red fill for Long
-        # else:
-        #     x_values = [row['selldates'], row['buydates'], row['buydates'], row['selldates']]
-        #     y_values = [row['sellprice'], row['sellprice'], tsl, tsl]
-        #     fillcolor = 'rgba(255, 0, 0, 0.3)'  # Red fill for Short
-
-        # fig.add_trace(go.Scatter(
-        #     x=x_values,
-        #     y=y_values,
-        #     fill='toself',
-        #     fillcolor=fillcolor,
-        #     name=name,
-        #     mode='none',
-        #     showlegend=False  # Exclude legend for this trace
-        # ))
-
         entry_exit_data = {
             'Long': {
                 'xx_values': [row['buydates'], row['selldates']],
@@ -1198,7 +1281,7 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=300):
                 'text_position_exit': 'top right',  # Text position for Short EXIT
             },
         }
-
+        
         data = entry_exit_data.get(row['tradeSide'])
 
         if data:
@@ -1237,80 +1320,8 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=300):
                 showlegend=False  # Exclude legend for this trace
             ))
 
-    # Define fill colors
-    fillcolor2 = 'rgba(0, 255, 0, 0.3)'  # Fill color for corresponding polygons of trailing SL till exit entry
-
-    # Plot trades and trailing stop-loss
-    for _, trade in dfr.iterrows():
-        side = trade['tradeSide']
-        entry_date = trade['buydates'] if side == 'Long' else trade['selldates']
-        exit_date = trade['selldates'] if side == 'Long' else trade['buydates']
-        print(f'Entry Date :{entry_date} | Exit Date : {exit_date}')
-        
-        tsl_data = df.loc[(df.index >= entry_date) & (df.index <= exit_date)]
-        tsl_values = tsl_data['tsl_long'] if side == 'Long' else tsl_data['tsl_short']
-        
-        prev_tsl_value = None  # To track the previous value of tsl
-        is_first_polygon = True  # Flag to track the first polygon for each trade
-        
-        # Initialize fillcolor to red for the first polygon
-        fillcolor = 'rgba(255, 0, 0, 0.3)'
-        
-        for date, tsl_value in tsl_values.items():
-            if prev_tsl_value is None:
-                prev_tsl_value = tsl_value
-                initial_sl = min(trade['buyprice'], tsl_value)  # Initial SL from buyprice to min(tsl_long, buyprice)
-                
-                # Add the initial polygon
-                fig.add_shape(
-                    type='rect',
-                    xref='x',
-                    yref='y',
-                    x0=entry_date,
-                    y0=initial_sl,
-                    x1=date,
-                    y1=max(tsl_values),
-                    fillcolor=fillcolor,
-                )
-                
-                continue
-            
-            if tsl_value != prev_tsl_value:
-                # There's a change in tsl_value, end the current polygon
-                fig.add_shape(
-                    type='rect',
-                    xref='x',
-                    yref='y',
-                    x0=entry_date,
-                    y0=initial_sl,
-                    x1=date,
-                    y1=max(tsl_values),
-                    fillcolor=fillcolor,
-                )
-                
-                entry_date = date  # Start a new polygon from the new date
-                prev_tsl_value = tsl_value
-                initial_sl = tsl_value  # Update initial SL for subsequent polygons
-                
-                # Set fillcolor to green for subsequent polygons
-                if is_first_polygon:
-                    fillcolor = 'rgba(0, 255, 0, 0.3)'
-                    is_first_polygon = False
-        
-        # Add the final polygon for the trade
-        fig.add_shape(
-            type='rect',
-            xref='x',
-            yref='y',
-            x0=entry_date,
-            y0=initial_sl,
-            x1=exit_date,
-            y1=max(tsl_values),
-            fillcolor=fillcolor,
-        )
-
-    # Enable or disable auto-scaling
-    fig.update_layout(autosize=True)  # Auto-scaling enabled (default)
+    # Set the x-axis range to display the most recent data points by default
+    fig.update_xaxes(range=[df.index[-num_data_points], df.index[-1]])
 
     # Add the text annotations to the figure
     fig.update_layout(annotations=annotations)
@@ -1322,8 +1333,8 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=300):
         yaxis=dict(
         range=[y_min, y_max],  # Set the desired y-axis range
         ),
-        height=600,  # Set the desired height in pixels
-        width=800,
+        height=800,  # Set the desired height in pixels
+        # width=800,
         title='Advanced Gann Swing Candlestick Chart',
         xaxis_title='Date',
         yaxis_title='Price',

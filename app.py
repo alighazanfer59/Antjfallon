@@ -10,6 +10,13 @@ import importlib
 import subprocess
 import warnings
 
+# from session_state import init
+# init()  # Initialize session state
+def init_session_state():
+    if not hasattr(st, 'session_state'):
+        st.session_state.my_session_state = None
+
+
 # Filter out the FutureWarning
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -21,11 +28,11 @@ from main_functions import *
 importlib.reload(kraken_config)
 from kraken_config import *
 
+# exchange = krakenActive(mode)
 
-exchange = krakenActive(mode)
-
-# Initialize notebook mode
-# init_notebook_mode(connected=True)
+# Create a session state variable to track the Streamlit message display
+if 'streamlit_message_displayed' not in st.session_state:
+    st.session_state.streamlit_message_displayed = False
 
 pd.set_option('display.max_rows', 400)  # Set the maximum number of rows to display
 
@@ -47,14 +54,50 @@ fut_tickers = ['SANDUSDT', 'DGBUSDT', 'EGLDUSDT', 'BTCUSDT', 'GALAUSDT', 'TUSDT'
                'PERPUSDT', 'NMRUSDT', 'COTIUSDT', 'APTUSDT', 'IDUSDT', 'BNBUSDT', 'FTMUSDT', 'AUDIOUSDT', 'TRXUSDT', 'GTCUSDT', 'BATUSDT', 'ACHUSDT', 'STGUSDT', 
                'SUIUSDT', 'ICPUSDT', 'STMXUSDT', 'KLAYUSDT', 'TRUUSDT', 'ADAUSDT', 'ROSEUSDT', 'NEARUSDT']
 
+# Constants for position size types and price types
+pos_size_types = ['Fixed', 'Dynamic']
+pos_size_price = ['Quote', 'Base', 'Percentage']
+
+# Define tooltips
+tooltip_initial_capital = "The amount initially available for the strategy to trade."
+tooltip_base_currency = "Currency used in calculations and strategy results."
+tooltip_order_size = "The number of contracts/shares/lots/units per trade, or the amount in base currency, or a percentage of available equity."
+tooltip_pyramiding = "Maximum number of successive entries allowed in the same direction."
+tooltip_commission = "Commission in %, USD per contract, or USD per order."
+
+
 # Streamlit App Title
 st.title("Advanced Gann Swing Strategy")
 # Sidebar
 with st.sidebar:
-    st.subheader('Input Parameters')
-    
-    # Input Parameter for Direction
+    st.title("Strategy Parameters")
+    initial_capital = st.number_input("Initial Capital (USD)", value=10000.0, step=100.0, format="%.2f", help=tooltip_initial_capital)
+    base_currency = st.selectbox("Base Currency", ["USD", "EUR", "BTC"], index=0, help=tooltip_base_currency)
+    order_size = st.selectbox("Order Size", ["Contracts", "USD", "% of Equity"], index=0, help=tooltip_order_size)
+    pyramiding = st.slider("Pyramiding", min_value=1, max_value=10, value=1, help=tooltip_pyramiding)
+    commission_type = st.selectbox("Commission Type", ["Percentage", "USD per Contract", "USD per Order"], index=0, help=tooltip_commission)
+    commission_value = st.number_input("Commission Value", value=0.01, step=0.01, format="%.2f")
+
+    st.title("Position Size Calculator")
     direction = st.radio("Select Direction:", ["Both", "Short", "Long"], index=0)  # "Both" is the default value
+    method_type = st.selectbox("Position Size Type", pos_size_types, index=1)  # 1 corresponds to "Dynamic" in the list
+    if method_type == "Dynamic":
+        price_type = st.selectbox("Price Type", pos_size_price, index=2)  # 2 corresponds to "Percentage" in the list
+        value_label = st.selectbox("Value", ["Max Risk [%]"], index=0)
+    else:
+        price_type = st.selectbox("Price Type", pos_size_price, index=0)  # Default to "Quote" for "Fixed"
+        if price_type == "Quote":
+            value_label = st.selectbox("Value", ["$1000", "0.1 BTC"], index=0)
+        elif price_type == "Base":
+            value_label = st.selectbox("Value", ["0.1 BTC", "$1000"], index=0)  # Swap the labels for "Base"
+
+    # Convert the selected label to the actual numeric value
+    if value_label == "$1000":
+        value = 1000.0
+    elif value_label == "0.1 BTC":
+        value = 0.1
+    elif value_label == "Max Risk [%]":
+        value = st.number_input("Max Risk (%)", value=2.0)  # Set a default value for percentage
 
     # Input Parameter for max_sw_cnt
     max_sw_cnt = st.number_input("Enter max_sw_cnt:", min_value=1, value=3)
@@ -75,20 +118,35 @@ with st.sidebar:
     if st.button("Show/Hide Log File"):
         st.session_state.show_log = not st.session_state.get("show_log", False)
 
+    # Check the value of sandbox_mode in kraken_config.py
+    mode = kraken_config.sandbox_mode
     # Radio button to choose mode (sandbox/demo or live)
     mode_options = ["Sandbox/Demo", "Live"]
-    mode_choice = st.radio("Select Mode:", mode_options, index=0 if mode == "True" else 1)
 
-    # Example in your Streamlit app
-    if mode_choice == "Sandbox/Demo":
-        set_sandbox_mode(True)
-    elif mode_choice == "Live":
-        set_sandbox_mode(False)
+    # Check if mode_choice is in session state and set the mode accordingly
+    init_session_state()
+    # Initialize session state
+    if 'mode_choice' not in st.session_state:
+        # Set the initial mode_choice based on the value in kraken_config.py
+        st.session_state.mode_choice = "Sandbox/Demo" if mode else "Live"
 
+    # Get the selected mode_choice from session state
+    mode_choice = st.radio("Select Mode:", mode_options, index=mode_options.index(st.session_state.mode_choice))
 
+    # Set the mode_choice in session state
+    st.session_state.mode_choice = mode_choice
+    # Call check_authentication_and_display when mode_choice changes
+    check_authentication_and_display(mode_choice)
+
+    # Set sandbox_mode based on mode_choice and update it in kraken_config.py
+    sandbox_mode = (mode_choice == "Sandbox/Demo")
+    set_sandbox_mode(sandbox_mode)
+    # Print the updated mode for debugging
+    st.write("Updated SandBox Mode to: ", sandbox_mode)
+    
     # Get the existing API key and secret from config file
     config_path = 'kraken_config.py'
-    live_mode = mode_choice == "Live"
+    live_mode = mode_choice == "Live"  # Check the mode from kraken_config.py
     api_key, secret_key = get_api_key_secret(config_path, live_mode=live_mode)
 
     if mode_choice == "Sandbox/Demo":

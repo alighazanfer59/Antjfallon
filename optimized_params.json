@@ -1,10 +1,1 @@
-{
-"symbol": "DGBUSDT", 
-"timeframe": "1day", 
-"max_sw_cnt": 3, 
-"exit_perc": 80, 
-"tp_exit": false, 
-"tp_value": 0.38, 
-"direction":"both",
-"pi_exit": true
-}
+{"symbol": "BTCUSDT", "timeframe": "1day", "max_sw_cnt": 3, "exit_perc": 80.0, "tp_exit": false, "tp_value": 0, "direction": "Short", "pi_exit": true}
