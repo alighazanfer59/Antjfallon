@@ -893,6 +893,8 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, pi_exit = Tru
                             False
                             )
     
+    st.write(df[300:500])
+    
     return df
 
 def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_exit = False):
