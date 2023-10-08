@@ -893,6 +893,8 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, pi_exit = Tru
                             False
                             )
     
+    st.write(df[300:500])
+    
     return df
 
 def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_exit = False):
@@ -1138,7 +1140,6 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=1500):
         
         tsl_data = df.loc[(df.index >= entry_date) & (df.index <= exit_date)]
         tsl_values = tsl_data['tsl_long'] if side == 'Long' else tsl_data['tsl_short']
-
         prev_tsl_value = None  # To track the previous value of tsl
         is_first_polygon = True  # Flag to track the first polygon for each trade
         
