@@ -248,10 +248,11 @@ if calculate_button:
     st.session_state.df = df
     # Calculate Signals:
     calculate_candle_type(df)
-    dfs = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc/100, pi_exit = pi_exit)
+    dfs = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc/100)
     st.session_state.dfs = dfs
     # st.write(dfs)
-    results_data, result_df = backtest(dfs, sel_ticker, commission=0.04/100, tp_perc = tp_value, direction = direction)
+    tp_perc = 0 if tp_exit == False else tp_value
+    results_data, result_df = backtest(dfs, sel_ticker, commission=0.04/100, tp_perc = tp_perc, direction = direction, pi_exit = pi_exit)
     st.session_state.result_df = result_df
     # st.write(results_data)
     dfr = displayTrades(direction, **results_data)

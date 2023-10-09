@@ -668,7 +668,7 @@ def calculate_candle_type(df):
         )
     )
 
-def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, pi_exit = True):
+def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100):
     calculate_candle_type(df)
     # Initialize p_cnt with a list containing the initial value (0) for the first row
     p_cnt_values = [0]
@@ -887,7 +887,7 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, pi_exit = Tru
                             False
                             )
     
-    df["pi_bottom"] = np.where(pi_exit == True &
+    df["pi_bottom"] = np.where(
                             (df['Close'].rolling(window=550).mean() > df['Close'].rolling(window=250).mean()), 
                             True, 
                             False
@@ -897,7 +897,125 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, pi_exit = Tru
     
     return df
 
-def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_exit = False):
+def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_exit = True):
+    in_position = False
+    buy_pos = False
+    sell_pos = False
+
+    results_df = pd.DataFrame()
+    buydates, buyprices = [], []
+    selldates, sellprices = [], []
+
+    for index, row in df.iterrows():
+    # ---------------------------------------------long position close check------------------------------
+        if in_position and buy_pos:
+            
+            sl = row.tsl_long
+            if (row.Low <= sl):
+                selldates.append(index)
+                sellprices.append(row.Low)
+                in_position = False
+                buy_pos = False
+            elif (row.High >= tp) and (tp_perc != 0):
+                selldates.append(index)
+                sellprices.append(row.High)
+                in_position = False
+                buy_pos = False
+            elif (row.pi_top) and (pi_exit):
+                selldates.append(index)
+                sellprices.append(row.High)
+                in_position = False
+                buy_pos = False
+            elif row.Long_Exit > 0:
+                limit = row.Long_Exit
+            elif row.Low <= limit:
+                selldates.append(index)
+                sellprices.append(limit)
+                in_position = False
+                buy_pos = False
+
+    # ---------------------------------------------short position close check------------------------------
+        elif in_position and sell_pos:
+            sl = row.tsl_short
+            if (row.High >= sl):
+                buydates.append(index)
+                buyprices.append(row.High)
+                in_position = False
+                sell_pos = False
+                
+            elif (row.Low <= tp) and (tp_perc != 0):
+                buydates.append(index)
+                buyprices.append(row.Low)
+                in_position = False
+                buy_pos = False
+            elif (row.pi_bottom) and (pi_exit):
+                buydates.append(index)
+                buyprices.append(row.Low)
+                in_position = False
+                buy_pos = False
+            elif row.Short_Exit > 0:
+                limit = row.Short_Exit
+            elif row.High >= limit:
+                buydates.append(index)
+                buyprices.append(limit)
+                in_position = False
+                buy_pos = False
+                
+    #         print(limit, in_position)
+                
+    # ======================================================================================================              
+                
+    # ---------------------------------------------long position entry check------------------------------
+        if not in_position:
+            if direction in ("Both", "Long") and row.LONG_Signal:
+                buyprice = row.tsl_short
+                buydates.append(index)
+                buyprices.append(buyprice)
+                in_position = True
+                buy_pos = True
+                tp = buyprice * (1 + tp_perc)
+                limit = np.nan
+
+            elif direction in ("Both", "Short") and row.SHORT_Signal:
+                sellprice = row.tsl_long
+                selldates.append(index)
+                sellprices.append(sellprice)
+                in_position = True
+                sell_pos = True
+                tp = sellprice * (1 - tp_perc)
+                limit = np.nan
+
+                    
+
+    if len(buydates) == 0:
+        print(f"No trades were made for {ticker}.")
+    else:
+        profits = [(sell - buy) / buy - commission for sell, buy in zip(sellprices, buyprices)]
+        returns = ((pd.Series(profits, dtype=float) + 1).prod() - 1) * 100
+        wins = 0
+        for i in profits:
+            if i > 0:
+                wins += 1
+            i += 1
+        winrate = round((wins / len(buydates)) * 100, 2)
+        ct = min(len(buydates), len(selldates))
+
+        # BTCUSDT buy and hold returns during the same period
+        buy_hold_ret = (df['Close'][-1] - df['Open'][0]) / df['Open'][0] * 100
+
+        results_df = pd.concat([results_df, pd.DataFrame({'ticker': f'{ticker}', 'returns': [returns], 'winrate': [winrate], 'trades': [ct], 'buy&hold_ret%': [buy_hold_ret]})])
+        st.subheader('Backtest Results')
+        st.write(f'{ticker}, winrate={winrate}%, returns={round(returns, 2)}%, no. of trades = {ct}, buy&hold_ret = {round(buy_hold_ret, 2)}%')
+
+    # Return the trade data along with other results
+    return {
+        'buydates': buydates,
+        'buyprices': buyprices,
+        'selldates': selldates,
+        'sellprices': sellprices,
+        'profits': profits,
+        # Other results...
+    }, results_df
     in_position = False
     buy_pos = False
     sell_pos = False
@@ -1038,13 +1156,13 @@ def displayTrades(direction="Both", **kwargs):
     dfr['profits'] = (profits[:ct])
     dfr['commulative_returns'] = ((pd.Series(profits) + 1).cumprod())
     
-    # Filter trades based on the selected direction
-    if direction == "Both":
-        pass  # Keep all trades
-    elif direction == "Long":
-        dfr = dfr[dfr['buydates'] < dfr['selldates']]
-    elif direction == "Short":
-        dfr = dfr[dfr['buydates'] > dfr['selldates']]
+    # # Filter trades based on the selected direction
+    # if direction == "Both":
+    #     pass  # Keep all trades
+    # elif direction == "Long":
+    #     dfr = dfr[dfr['buydates'] < dfr['selldates']]
+    # elif direction == "Short":
+    #     dfr = dfr[dfr['buydates'] > dfr['selldates']]
     
     # Add a column to indicate the trade side
     dfr['tradeSide'] = np.where(dfr['buydates'] < dfr['selldates'], 'Long', 'Short')
@@ -1136,7 +1254,7 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=1500):
         side = trade['tradeSide']
         entry_date = trade['buydates'] if side == 'Long' else trade['selldates']
         exit_date = trade['selldates'] if side == 'Long' else trade['buydates']
-        print(f'Entry Date :{entry_date} | Exit Date : {exit_date} | Position: {side}')
+        # print(f'Entry Date :{entry_date} | Exit Date : {exit_date} | Position: {side}')
         
         tsl_data = df.loc[(df.index >= entry_date) & (df.index <= exit_date)]
         tsl_values = tsl_data['tsl_long'] if side == 'Long' else tsl_data['tsl_short']
@@ -1156,12 +1274,12 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=1500):
 
         for date, tsl_value in tsl_values.items():
             y_cord = ({'entry price' : y0 , 'tsl value' : tsl_value})
-            print(f'Polygon no: {number} | Date: {date} | {y_cord}')
+            # print(f'Polygon no: {number} | Date: {date} | {y_cord}')
             
             if prev_tsl_value is None:
                 prev_tsl_value = tsl_value
                 y1 = tsl_value  # Initialize y1 with the first tsl_value
-                print('first y1 value:', y1)
+                # print('first y1 value:', y1)
                 # Add the initial polygon to the trade_tsl_shapes list
                 trade_tsl_shapes.append(
                     go.Scatter(
