@@ -163,6 +163,7 @@ with st.sidebar:
                     set_api_key_secret(new_api_key, new_secret_key, config_path, live_mode=True)
                     st.success("Live API Key and Secret updated successfully.")
 
+st.write("Selected Method Type:", method_type)
 st.write("Selected Price Type:", price_type)
 st.write("Selected Value Label:", value_label)
 st.write("Value:", value)
@@ -218,7 +219,10 @@ final_params_dict = {
     "tp_exit": tp_exit,
     "tp_value": tp_value,
     "direction": direction,  # Add the "direction" parameter to the dictionary
-    "pi_exit": True
+    "pi_exit": pi_exit,
+    "method_type": method_type,
+    "price_type": price_type,
+    "pos_size_value": value,
 }
 
 # Define a function to initialize the session state
@@ -268,13 +272,14 @@ if st.button("Open Fullscreen Chart"):
         # Create a Plotly Go figure with your chart data
         try:
             fig = plot_advanced_gann_swing_chart(st.session_state.dfs, st.session_state.dfr)
+            st.session_state.fig = fig
             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
 
-
-
-
+# Check if 'fig' exists in session state and initialize it if not
+if 'fig' not in st.session_state:
+    st.session_state.fig = None
     # # Plot the chart
     # fig = plot_advanced_gann_swing_chart(dfs, dfr)
     # st.session_state.fig = fig
@@ -292,7 +297,7 @@ if st.button("Copy Optimized Parameters to Bot"):
         st.write(st.session_state.dfr)
     if st.session_state.fig is not None:
         st.subheader("Plot Chart:")
-        st.plotly_chart(st.session_state.fig)
+        st.plotly_chart(st.session_state.fig, use_container_width=True)
 
     # Save the optimized parameters to JSON file
     json_file_path = "optimized_params.json"

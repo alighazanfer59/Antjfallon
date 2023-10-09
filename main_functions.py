@@ -546,12 +546,12 @@ def calculate_balance(exchange, currency_code, percentage=0.20):
         print(f"An error occurred: {e}")
         return None, None, None
 
-def place_market_order(symbol, usdt_amount, tp_perc, order_type, position_type):
+def place_market_order(symbol, amount, tp_perc, order_type, position_type):
     global in_position, buy_pos, sell_pos  # Ensure we modify the global variables
 
-    # Determine position size
-    amount = calculate_order_size(symbol, usdt_amount)
-    # amount = round(position_size, 3)
+    # # Determine position size
+    # amount = calculate_order_size(symbol, usdt_amount)
+    # # amount = round(position_size, 3)
 
     try:
         if order_type == 'buy':
@@ -1380,37 +1380,46 @@ def open_log_file(log_display):
 
 # Function to calculate position size
 def calculate_position_size(
-    method_type, price_type, value, entry_price, sl_price, 
-    leverage, symbol, exchange
+    method_type, price_type, value, sl_price, 
+    symbol, exchange
 ):
     # Get the current ticker for the symbol
     ticker = exchange.fetch_ticker(symbol)
-
+    entry_price = ticker['last']
+    sym_quote = symbol[-3:]
+    total_bal = exchange.fetch_balance()['total'][sym_quote]
+    print('Entry Price: ', entry_price)
+    print('Total Balance: ', total_bal)
+    print('Symbol: ', symbol)
+    print('Qoote for Symbol is: ', sym_quote)
     # Calculate position size
-    qty = 0.0
-
+    
     if method_type == 'Fixed':
         if price_type == 'Quote':
-            qty = value / entry_price
+            qty_ = (value / entry_price)
         elif price_type == 'Base':
-            qty = value
+            qty_ = value
         elif price_type == 'Percentage':
-            qty = (exchange.fetch_balance()['total'][ticker['quote']] * (value * 0.01)) / entry_price
+            qty_ = (exchange.fetch_balance()['total'][sym_quote] * (value * 0.01)) / entry_price
     elif method_type == 'Dynamic':
         if price_type == 'Quote':
             qty_quote = (entry_price / ((abs(entry_price - sl_price)) / value))
-            qty = qty_quote / entry_price
+            qty_ = qty_quote / entry_price
         elif price_type == 'Base':
-            qty = (entry_price / ((abs(entry_price - sl_price)) / (value * entry_price))) / entry_price
+            qty_ = (entry_price / ((abs(entry_price - sl_price)) / (value * entry_price))) / entry_price
         elif price_type == 'Percentage':
-            qty_quote = (entry_price / ((abs(entry_price - sl_price)) / (exchange.fetch_balance()['total'][ticker['quote']] * (value * 0.01))))
-            qty = qty_quote / entry_price
+            qty_quote = (entry_price / ((abs(entry_price - sl_price)) / (total_bal * (value * 0.01))))
+            qty_ = qty_quote / entry_price
 
+    qty = round(qty_, 3)
     # Calculate money needed
     money_needed = qty * entry_price
+    print(f"Money ${money_needed} is needed to buy qty : {qty}")
 
     # Check if position size exceeds available equity and adjust if needed
-    if money_needed > exchange.fetch_balance()['total'][ticker['quote']]:
-        qty = exchange.fetch_balance()['total'][ticker['quote']] / entry_price
-
+    if money_needed > total_bal:
+        qty_ = total_bal / entry_price
+        qty = round(qty_, 3)
+    print(f"Money needed to buy quantity Exceeded Total Balance, So Adjusting Qty : {qty}")
+    
     return qty

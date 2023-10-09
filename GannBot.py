@@ -112,7 +112,7 @@ for key, value in params.items():
     print("%s : %s" % (key, value))
 
 currency_code = 'USD'  # Replace with the desired currency code
-amount_to_use, usd_free_balance, btc_free_balance = calculate_balance(exchange, currency_code)
+# amount_to_use, usd_free_balance, btc_free_balance = calculate_balance(exchange, currency_code)
 
 interval = map_timeframe(timeframe, get_value=True)
 symbol = symbol_mapping.get(symbol)
@@ -120,8 +120,8 @@ print('Symbol imported and mapped to Kraken Exchange: ', symbol)
 ticker = symbol[:-4]
 print('ticker: ', ticker)
 # Define trading variables
-usdt_amount = amount_to_use # 20% amount available balance of client account
-print("Balance to Use: ", usdt_amount)
+# usdt_amount = amount_to_use # 20% amount available balance of client account
+# print("Balance to Use: ", usdt_amount)
 timeframe = interval
 in_position = False
 
@@ -243,10 +243,22 @@ try:
         # Inside the 'if not in_position:' block
         elif not in_position:
             print('In "Not In Position" Block')
+            print('Postion Method Type: ', method_type)
+            print('Price Type: ', price_type)
+            print('Position Size Value: ', pos_size_value)
+            
             if row['LONG_Signal']:
                 print('Get Long Signal, Taking Long Position')
+                print('SL Long :', sl_long)
+                # Calculate position size
+                qty = calculate_position_size(
+                    method_type, price_type, pos_size_value, sl_long, 
+                    symbol, exchange
+                )
+
+                print(f"Position Size: {qty}")
                 # Place a market buy order for a long position
-                place_market_order(symbol, usdt_amount, tp_perc, 'buy', 'long')
+                place_market_order(symbol, qty, tp_perc, 'buy', 'long')
                 with open('order_info.json', 'r') as f:
                     json_order_info = f.read()
 
@@ -255,8 +267,16 @@ try:
                 buyCSV(df, buyprice=info['buyprice'], sellprice=0, filename=tradesfile)
             elif row['SHORT_Signal']:
                 print('Get Short Signal, Taking Short Position')
+                print('SL Long :', sl_short)
+                # Calculate position size
+                qty = calculate_position_size(
+                    method_type, price_type, pos_size_value, sl_short, 
+                    symbol, exchange
+                )
+
+                print(f"Position Size: {qty}")
                 # Place a market sell order for a short position
-                place_market_order(symbol, usdt_amount, tp_perc, 'sell', 'short')
+                place_market_order(symbol, qty, tp_perc, 'sell', 'short')
                 with open('order_info.json', 'r') as f:
                     json_order_info = f.read()
 
