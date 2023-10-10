@@ -865,7 +865,6 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100):
         False
     )
 
-    exit_perc = 80/100 # Percentage for limit order price price calculation --- > streamlit input
 
     df["Long_Exit"] = np.where((df['sw_highs'] == "LH") & 
                             (df['sw_trend'].shift(1) == 1.0) &
@@ -905,6 +904,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
     results_df = pd.DataFrame()
     buydates, buyprices = [], []
     selldates, sellprices = [], []
+    exit_types = []
 
     for index, row in df.iterrows():
     # ---------------------------------------------long position close check------------------------------
@@ -916,16 +916,19 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
                 sellprices.append(row.Low)
                 in_position = False
                 buy_pos = False
+                exit_types.append("SL Hit")
             elif (row.High >= tp) and (tp_perc != 0):
                 selldates.append(index)
-                sellprices.append(row.High)
+                sellprices.append(tp)
                 in_position = False
                 buy_pos = False
+                exit_types.append("TP Hit")
             elif (row.pi_top) and (pi_exit):
                 selldates.append(index)
                 sellprices.append(row.High)
                 in_position = False
                 buy_pos = False
+                exit_types.append("Pi Cycle")
             elif row.Long_Exit > 0:
                 limit = row.Long_Exit
             elif row.Low <= limit:
@@ -933,6 +936,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
                 sellprices.append(limit)
                 in_position = False
                 buy_pos = False
+                exit_types.append("Limit price Hit due to uncertain trend")
 
     # ---------------------------------------------short position close check------------------------------
         elif in_position and sell_pos:
@@ -942,17 +946,20 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
                 buyprices.append(row.High)
                 in_position = False
                 sell_pos = False
+                exit_types.append("SL Hit")
                 
             elif (row.Low <= tp) and (tp_perc != 0):
                 buydates.append(index)
-                buyprices.append(row.Low)
+                buyprices.append(tp)
                 in_position = False
                 buy_pos = False
+                exit_types.append("TP Hit")
             elif (row.pi_bottom) and (pi_exit):
                 buydates.append(index)
                 buyprices.append(row.Low)
                 in_position = False
                 buy_pos = False
+                exit_types.append("Pi Cycle")
             elif row.Short_Exit > 0:
                 limit = row.Short_Exit
             elif row.High >= limit:
@@ -960,6 +967,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
                 buyprices.append(limit)
                 in_position = False
                 buy_pos = False
+                exit_types.append("Limit price Hit due to uncertain trend")
                 
     #         print(limit, in_position)
                 
@@ -982,7 +990,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
                 sellprices.append(sellprice)
                 in_position = True
                 sell_pos = True
-                tp = sellprice * (1 - tp_perc)
+                tp = sellprice / (1 + tp_perc)
                 limit = np.nan
 
                     
@@ -1014,127 +1022,36 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
         'selldates': selldates,
         'sellprices': sellprices,
         'profits': profits,
-        # Other results...
-    }, results_df
-    in_position = False
-    buy_pos = False
-    sell_pos = False
-
-    results_df = pd.DataFrame()
-    buydates, buyprices = [], []
-    selldates, sellprices = [], []
-
-    for index, row in df.iterrows():
-    # ---------------------------------------------long position close check------------------------------
-        if in_position and buy_pos:
-            
-            sl = row.tsl_long
-            if (row.Low <= sl):
-                selldates.append(index)
-                sellprices.append(sl)
-                in_position = False
-                buy_pos = False
-            elif (row.High >= tp) and (tp_perc != 0):
-                selldates.append(index)
-                sellprices.append(tp)
-                in_position = False
-                buy_pos = False
-            elif (row.pi_top) and (pi_exit):
-                selldates.append(index)
-                sellprices.append(tp)
-                in_position = False
-                buy_pos = False
-            elif row.Long_Exit > 0:
-                limit = row.Long_Exit
-            elif row.Low <= limit:
-                selldates.append(index)
-                sellprices.append(limit)
-                in_position = False
-                buy_pos = False
-
-    # ---------------------------------------------short position close check------------------------------
-        elif in_position and sell_pos:
-            sl = row.tsl_short
-            if (row.High >= sl):
-                buydates.append(index)
-                buyprices.append(sl)
-                in_position = False
-                sell_pos = False
-                
-            elif (row.High <= tp) and (tp_perc != 0):
-                buydates.append(index)
-                buyprices.append(tp)
-                in_position = False
-                buy_pos = False
-            elif (row.pi_bottom) and (pi_exit):
-                buydates.append(index)
-                buyprices.append(tp)
-                in_position = False
-                buy_pos = False
-            elif row.Short_Exit > 0:
-                limit = row.Short_Exit
-            elif row.High >= limit:
-                buydates.append(index)
-                buyprices.append(limit)
-                in_position = False
-                buy_pos = False
-                
-    #         print(limit, in_position)
-                
-    # ======================================================================================================              
-                
-    # ---------------------------------------------long position entry check------------------------------
-        if not in_position:
-            if direction in ("Both", "Long") and row.LONG_Signal:
-                buyprice = row.tsl_short
-                buydates.append(index)
-                buyprices.append(buyprice)
-                in_position = True
-                buy_pos = True
-                tp = buyprice * (1 + tp_perc)
-                limit = np.nan
-
-            elif direction in ("Both", "Short") and row.SHORT_Signal:
-                sellprice = row.tsl_long
-                selldates.append(index)
-                sellprices.append(sellprice)
-                in_position = True
-                sell_pos = True
-                tp = sellprice * (1 - tp_perc)
-                limit = np.nan
-
-                    
-
-    if len(buydates) == 0:
-        print(f"No trades were made for {ticker}.")
-    else:
-        profits = [(sell - buy) / buy - commission for sell, buy in zip(sellprices, buyprices)]
-        returns = ((pd.Series(profits, dtype=float) + 1).prod() - 1) * 100
-        wins = 0
-        for i in profits:
-            if i > 0:
-                wins += 1
-            i += 1
-        winrate = round((wins / len(buydates)) * 100, 2)
-        ct = min(len(buydates), len(selldates))
-
-        # BTCUSDT buy and hold returns during the same period
-        buy_hold_ret = (df['Close'][-1] - df['Open'][0]) / df['Open'][0] * 100
-
-        results_df = pd.concat([results_df, pd.DataFrame({'ticker': f'{ticker}', 'returns': [returns], 'winrate': [winrate], 'trades': [ct], 'buy&hold_ret%': [buy_hold_ret]})])
-        st.subheader('Backtest Results')
-        st.write(f'{ticker}, winrate={winrate}%, returns={round(returns, 2)}%, no. of trades = {ct}, buy&hold_ret = {round(buy_hold_ret, 2)}%')
-
-    # Return the trade data along with other results
-    return {
-        'buydates': buydates,
-        'buyprices': buyprices,
-        'selldates': selldates,
-        'sellprices': sellprices,
-        'profits': profits,
+        'Exit Type' : exit_types
         # Other results...
     }, results_df
 
+def displayTrades(direction="Both", **kwargs):
+    st.write('Direction: ', direction)
+    # Access the trade data and other results from kwargs
+    buydates = kwargs['buydates']
+    buyprices = kwargs['buyprices']
+    selldates = kwargs['selldates']
+    sellprices = kwargs['sellprices']
+    profits = kwargs['profits']
+    exit = kwargs['Exit Type']
+
+    ct = min(len(buydates), len(selldates))
+    
+    # Create a DataFrame to store the trades
+    dfr = pd.DataFrame()
+    dfr['buydates'] = buydates[:ct]
+    dfr['buyprice'] = buyprices[:ct]
+    dfr['selldates'] = selldates[:ct]
+    dfr['sellprice'] = sellprices[:ct]
+    dfr['profits'] = (profits[:ct])
+    dfr['commulative_returns'] = ((pd.Series(profits) + 1).cumprod())
+    dfr['Exit Type'] = exit[:ct]
+    
+    # Add a column to indicate the trade side
+    dfr['tradeSide'] = np.where(dfr['buydates'] < dfr['selldates'], 'Long', 'Short')
+    
+    return dfr
 
 def displayTrades(direction="Both", **kwargs):
     st.write('Direction: ', direction)
