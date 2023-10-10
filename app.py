@@ -92,7 +92,8 @@ with st.sidebar:
             value = st.number_input("Position Size Value (%)", value=20, help="Enter the percentage value for position size.")
     
     # Input Parameter for max_sw_cnt
-    max_sw_cnt = st.number_input("Enter max_sw_cnt:", min_value=1, value=3)
+    max_sw_cnt_l = st.number_input("Enter max_sw_cnt long:", min_value=1, value=3)
+    max_sw_cnt_s = st.number_input("Enter max_sw_cnt short:", min_value=1, value=3)
 
     # Exit Percentage
     exit_perc = st.number_input("Uncertain Trend Exit Limit Percentage:", min_value=0.0, max_value=100.0, value=80.0)
@@ -213,7 +214,8 @@ st.write(f"Number of days since start date: {day} days")
 final_params_dict = {
     "symbol": sel_ticker,
     "timeframe": sel_tf,
-    "max_sw_cnt": max_sw_cnt,
+    "max_sw_cnt_l": max_sw_cnt_l,
+    "max_sw_cnt_s": max_sw_cnt_s,
     "exit_perc": exit_perc,
     "tp_exit": tp_exit,
     "tp_value": tp_value,
@@ -244,7 +246,10 @@ if calculate_button:
     st.session_state.df = df
     # Calculate Signals:
     calculate_candle_type(df)
-    dfs = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc/100)
+    dfl = calculate_gann_signals(df, max_sw_cnt = max_sw_cnt_l, exit_perc = exit_perc/100, side = "long")
+    dfsh = calculate_gann_signals(df, max_sw_cnt = max_sw_cnt_s, exit_perc = exit_perc/100, side = "short")
+    unique_columns = dfsh.columns.difference(dfl.columns)
+    dfs = pd.concat([dfl, dfsh[unique_columns]], axis=1)
     st.session_state.dfs = dfs
     # st.write(dfs)
     tp_perc = 0 if tp_exit == False else tp_value

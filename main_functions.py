@@ -668,8 +668,9 @@ def calculate_candle_type(df):
         )
     )
 
-def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100):
+def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, side = "long"):
     calculate_candle_type(df)
+    
     # Initialize p_cnt with a list containing the initial value (0) for the first row
     p_cnt_values = [0]
 
@@ -843,50 +844,54 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100):
                                        )
                             )
     # df['trend'].fillna(method='ffill', inplace=True)
-
-    df['tsl_long'] = df['sw_low_price'].shift(1)
-    df['tsl_short'] = df['sw_high_price'].shift(1)
-
-    df["LONG_Signal"] = np.where(
-        ((df['sw_lows'] == "HL") | ((df['sw_highs'] == "HH") & (df['sw_lows'] == "HL"))) & 
-        ((df['High'] > df['sw_high_price'].shift(1)) &
-        (df['High'].shift(1) < df['sw_high_price'].shift(1)) &
-        ((df['trend'].shift(1) == "UNCERTAIN") | (df['trend'] == "UP"))),
-        True,
-        False
-    )
-
-    df["SHORT_Signal"] = np.where(
-        ((df['sw_highs'] == "LH") | ((df['sw_lows'] == "LL") & (df['sw_highs'] == "LH"))) & 
-        (df['Low'] < df['sw_low_price'].shift(1)) &
-        (df['Low'].shift(1) > df['sw_low_price'].shift(1)) &
-        ((df['trend'].shift(1) == "UNCERTAIN") | (df['trend'] == "DOWN")),  
-        True, 
-        False
-    )
-
-
-    df["Long_Exit"] = np.where((df['sw_highs'] == "LH") & 
+    if side == "long":
+        df[f'tsl_{side}'] = df['sw_low_price'].shift(1)
+        df[f'{side}_entry'] = df['sw_high_price'].shift(1)
+        
+        df[f"{side}_Signal"] = np.where(
+                            ((df['sw_lows'] == "HL") | ((df['sw_highs'] == "HH") & (df['sw_lows'] == "HL"))) & 
+                            ((df['High'] > df['sw_high_price'].shift(1)) &
+                            (df['High'].shift(1) < df['sw_high_price'].shift(1)) &
+                            ((df['trend'].shift(1) == "UNCERTAIN") | (df['trend'] == "UP"))),
+                            True,
+                            False
+                            )
+        
+        df[f"{side}_Exit"] = np.where((df['sw_highs'] == "LH") & 
                             (df['sw_trend'].shift(1) == 1.0) &
                             (df['sw_trend'] == -1.0) &
                             (df['trend'] == "UNCERTAIN"),  
                             ((df['sw_high_price'] - df['sw_low_price'])*exit_perc + df['sw_low_price']), 
                                 np.nan)
-
-    df["Short_Exit"] = np.where((df['sw_lows'] == "HL") & 
-                            (df['sw_trend'].shift(1) == -1.0) &
-                            (df['sw_trend'] == 1.0) &
-                            (df['trend'] == "UNCERTAIN"),  
-                            (df['sw_high_price'] - (df['sw_high_price'] - df['sw_low_price'])*exit_perc), 
-                                np.nan)
-    
-    df["pi_top"] = np.where(
+        
+        df["pi_top"] = np.where(
                             (df['Open'].rolling(window=111).mean()) > (df['Open'].rolling(window=350).mean() * 2), 
                             True, 
                             False
                             )
     
-    df["pi_bottom"] = np.where(
+        
+    else:
+        df[f'tsl_{side}'] = df['sw_high_price'].shift(1)
+        df[f'{side}_entry'] = df['sw_low_price'].shift(1)
+        
+        df[f"{side}_Signal"] = np.where(
+                            ((df['sw_highs'] == "LH") | ((df['sw_lows'] == "LL") & (df['sw_highs'] == "LH"))) & 
+                            (df['Low'] < df['sw_low_price'].shift(1)) &
+                            (df['Low'].shift(1) > df['sw_low_price'].shift(1)) &
+                            ((df['trend'].shift(1) == "UNCERTAIN") | (df['trend'] == "DOWN")),  
+                            True, 
+                            False
+                            )
+
+        df[f"{side}_Exit"] = np.where((df['sw_lows'] == "HL") & 
+                            (df['sw_trend'].shift(1) == -1.0) &
+                            (df['sw_trend'] == 1.0) &
+                            (df['trend'] == "UNCERTAIN"),  
+                            (df['sw_high_price'] - (df['sw_high_price'] - df['sw_low_price'])*exit_perc), 
+                                np.nan)    
+
+        df["pi_bottom"] = np.where(
                             (df['Close'].rolling(window=550).mean() > df['Close'].rolling(window=250).mean()), 
                             True, 
                             False
@@ -929,8 +934,8 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
                 in_position = False
                 buy_pos = False
                 exit_types.append("Pi Cycle")
-            elif row.Long_Exit > 0:
-                limit = row.Long_Exit
+            elif row.long_Exit > 0:
+                limit = row.long_Exit
             elif row.Low <= limit:
                 selldates.append(index)
                 sellprices.append(limit)
@@ -960,8 +965,8 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
                 in_position = False
                 buy_pos = False
                 exit_types.append("Pi Cycle")
-            elif row.Short_Exit > 0:
-                limit = row.Short_Exit
+            elif row.short_Exit > 0:
+                limit = row.short_Exit
             elif row.High >= limit:
                 buydates.append(index)
                 buyprices.append(limit)
@@ -975,8 +980,8 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
                 
     # ---------------------------------------------long position entry check------------------------------
         if not in_position:
-            if direction in ("Both", "Long") and row.LONG_Signal:
-                buyprice = row.tsl_short
+            if direction in ("Both", "Long") and row.long_Signal:
+                buyprice = row.long_entry
                 buydates.append(index)
                 buyprices.append(buyprice)
                 in_position = True
@@ -984,8 +989,8 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
                 tp = buyprice * (1 + tp_perc)
                 limit = np.nan
 
-            elif direction in ("Both", "Short") and row.SHORT_Signal:
-                sellprice = row.tsl_long
+            elif direction in ("Both", "Short") and row.short_Signal:
+                sellprice = row.short_entry
                 selldates.append(index)
                 sellprices.append(sellprice)
                 in_position = True
@@ -1026,6 +1031,8 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
         # Other results...
     }, results_df
 
+
+
 def displayTrades(direction="Both", **kwargs):
     st.write('Direction: ', direction)
     # Access the trade data and other results from kwargs
@@ -1051,40 +1058,7 @@ def displayTrades(direction="Both", **kwargs):
     # Add a column to indicate the trade side
     dfr['tradeSide'] = np.where(dfr['buydates'] < dfr['selldates'], 'Long', 'Short')
     
-    return dfr
-
-def displayTrades(direction="Both", **kwargs):
-    st.write('Direction: ', direction)
-    # Access the trade data and other results from kwargs
-    buydates = kwargs['buydates']
-    buyprices = kwargs['buyprices']
-    selldates = kwargs['selldates']
-    sellprices = kwargs['sellprices']
-    profits = kwargs['profits']
-
-    ct = min(len(buydates), len(selldates))
-    
-    # Create a DataFrame to store the trades
-    dfr = pd.DataFrame()
-    dfr['buydates'] = buydates[:ct]
-    dfr['buyprice'] = buyprices[:ct]
-    dfr['selldates'] = selldates[:ct]
-    dfr['sellprice'] = sellprices[:ct]
-    dfr['profits'] = (profits[:ct])
-    dfr['commulative_returns'] = ((pd.Series(profits) + 1).cumprod())
-    
-    # # Filter trades based on the selected direction
-    # if direction == "Both":
-    #     pass  # Keep all trades
-    # elif direction == "Long":
-    #     dfr = dfr[dfr['buydates'] < dfr['selldates']]
-    # elif direction == "Short":
-    #     dfr = dfr[dfr['buydates'] > dfr['selldates']]
-    
-    # Add a column to indicate the trade side
-    dfr['tradeSide'] = np.where(dfr['buydates'] < dfr['selldates'], 'Long', 'Short')
-    
-    return dfr
+    return dfr    
 
 def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=1500):
     
