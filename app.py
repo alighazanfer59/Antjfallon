@@ -59,8 +59,8 @@ pos_size_types = ['Fixed', 'Dynamic']
 pos_size_price = ['Quote', 'Base', 'Percentage']
 
 # Define tooltips
-tooltip_base = "Position size value is specified in base currency (BTC in this case)."
-tooltip_quote = "Position size value is specified in quote currency (USD in this case)."
+tooltip_base = "Position size value is specified in base currency (e.g. BTC)."
+tooltip_quote = "Position size value is specified in quote currency (i.e. USD)."
 tooltip_percentage = "Position size value is specified as a percentage of available equity."
 tt_method_type = """Fixed P/S: $1K, or 0.1 BTC
 Dynamic P/S: Max Risk [%]"""
@@ -110,6 +110,15 @@ with st.sidebar:
         tp_value = st.number_input("Take Profit Percentage:", min_value=0.0, max_value=1.0, value=0.38)
     else:
         tp_value = 0  # No take profit
+
+    # Trailing offset Exit Checkbox and Value
+    tsl_offset_en = st.checkbox("Trailing SL offset Enable/Disable")
+    tsl_offset_pct = 0.1
+    if tsl_offset_en:
+        tsl_offset = st.number_input("Trailing SL offset Percentage:", min_value=0.0, max_value=100.0, step=0.1, value=0.1)
+    else:
+        tsl_offset = 0  # No take profit
+
 
     # Check the value of sandbox_mode in kraken_config.py
     mode = kraken_config.sandbox_mode
@@ -223,6 +232,7 @@ final_params_dict = {
     "method_type": method_type,
     "price_type": price_type,
     "pos_size_value": value,
+    "tsl_offset" : tsl_offset,
 }
 
 # Define a function to initialize the session state
@@ -255,7 +265,7 @@ if calculate_button:
     st.session_state.dfs = dfs
     # st.write(dfs)
     tp_perc = 0 if tp_exit == False else tp_value
-    results_data, result_df = backtest(dfs, sel_ticker, commission=0.04/100, tp_perc = tp_perc, direction = direction, pi_exit = pi_exit)
+    results_data, result_df = backtest(dfs, sel_ticker, commission=0.04/100, tp_perc = tp_perc, direction = direction, pi_exit = pi_exit, tsl_offset = tsl_offset)
     st.session_state.result_df = result_df
     # st.write(results_data)
     dfr = displayTrades(direction, **results_data)

@@ -901,7 +901,7 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, side = "long"
     
     return df
 
-def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_exit = True):
+def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_exit = True, tsl_offset = 0.1/100):
     in_position = False
     buy_pos = False
     sell_pos = False
@@ -915,7 +915,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
     # ---------------------------------------------long position close check------------------------------
         if in_position and buy_pos:
             
-            sl = row.tsl_long
+            sl = row.tsl_long*(1-tsl_offset)
             if (row.Low <= sl):
                 selldates.append(index)
                 sellprices.append(row.Low)
@@ -945,7 +945,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
 
     # ---------------------------------------------short position close check------------------------------
         elif in_position and sell_pos:
-            sl = row.tsl_short
+            sl = row.tsl_short*(1+tsl_offset)
             if (row.High >= sl):
                 buydates.append(index)
                 buyprices.append(row.High)
@@ -988,6 +988,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
                 buy_pos = True
                 tp = buyprice * (1 + tp_perc)
                 limit = np.nan
+                # tsl_offset = tsl_offset_pct/100 if tsl_offset_en == True else 0
 
             elif direction in ("Both", "Short") and row.short_Signal:
                 sellprice = row.short_entry
@@ -997,6 +998,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
                 sell_pos = True
                 tp = sellprice / (1 + tp_perc)
                 limit = np.nan
+                # tsl_offset = tsl_offset_pct/100 if tsl_offset_en == True else 0
 
                     
 
