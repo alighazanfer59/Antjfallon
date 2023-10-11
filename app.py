@@ -69,6 +69,10 @@ Dynamic P/S: Max Risk [%]"""
 st.title("Advanced Gann Swing Strategy")
 # Sidebar
 with st.sidebar:
+    # Toggle button to show/hide log file
+    if st.button("Show/Hide Log File"):
+        st.session_state.show_log = not st.session_state.get("show_log", False)
+    
     st.title("Strategy Parameters")
     st.header("Position Size Calculator")
     direction = st.radio("Select Direction:", ["Both", "Short", "Long"], index=0)  # "Both" is the default value
@@ -92,7 +96,8 @@ with st.sidebar:
             value = st.number_input("Position Size Value (%)", value=20, help="Enter the percentage value for position size.")
     
     # Input Parameter for max_sw_cnt
-    max_sw_cnt = st.number_input("Enter max_sw_cnt:", min_value=1, value=3)
+    max_sw_cnt_l = st.number_input("Enter max_sw_cnt long:", min_value=1, value=3)
+    max_sw_cnt_s = st.number_input("Enter max_sw_cnt short:", min_value=1, value=3)
 
     # Exit Percentage
     exit_perc = st.number_input("Uncertain Trend Exit Limit Percentage:", min_value=0.0, max_value=100.0, value=80.0)
@@ -105,10 +110,6 @@ with st.sidebar:
         tp_value = st.number_input("Take Profit Percentage:", min_value=0.0, max_value=1.0, value=0.38)
     else:
         tp_value = 0  # No take profit
-
-    # Toggle button to show/hide log file
-    if st.button("Show/Hide Log File"):
-        st.session_state.show_log = not st.session_state.get("show_log", False)
 
     # Check the value of sandbox_mode in kraken_config.py
     mode = kraken_config.sandbox_mode
@@ -163,11 +164,6 @@ with st.sidebar:
                     set_api_key_secret(new_api_key, new_secret_key, config_path, live_mode=True)
                     st.success("Live API Key and Secret updated successfully.")
 
-st.write("Selected Method Type:", method_type)
-st.write("Selected Price Type:", price_type)
-st.write("Selected Value Label:", value_label)
-st.write("Value:", value)
-
 # Main window
 main_display = st.empty()
 
@@ -182,7 +178,10 @@ if st.session_state.show_log:
 # # Toggle button to open/close the log file
 # if st.session_state.show_log:
 #     open_log_file(main_display)
-
+st.write("Selected Method Type:", method_type)
+st.write("Selected Price Type:", price_type)
+st.write("Selected Value Label:", value_label)
+st.write("Value:", value)
 
 # Input Parameters
 sel_ticker = st.selectbox("Select Ticker Symbol:", fut_tickers, index=fut_tickers.index("BTCUSDT"))
@@ -214,7 +213,8 @@ st.write(f"Number of days since start date: {day} days")
 final_params_dict = {
     "symbol": sel_ticker,
     "timeframe": sel_tf,
-    "max_sw_cnt": max_sw_cnt,
+    "max_sw_cnt_l": max_sw_cnt_l,
+    "max_sw_cnt_s": max_sw_cnt_s,
     "exit_perc": exit_perc,
     "tp_exit": tp_exit,
     "tp_value": tp_value,
@@ -248,7 +248,10 @@ if calculate_button:
     st.session_state.df = df
     # Calculate Signals:
     calculate_candle_type(df)
-    dfs = calculate_gann_signals(df, max_sw_cnt, exit_perc = exit_perc/100)
+    dfl = calculate_gann_signals(df, max_sw_cnt = max_sw_cnt_l, exit_perc = exit_perc/100, side = "long")
+    dfsh = calculate_gann_signals(df, max_sw_cnt = max_sw_cnt_s, exit_perc = exit_perc/100, side = "short")
+    unique_columns = dfsh.columns.difference(dfl.columns)
+    dfs = pd.concat([dfl, dfsh[unique_columns]], axis=1)
     st.session_state.dfs = dfs
     # st.write(dfs)
     tp_perc = 0 if tp_exit == False else tp_value

@@ -1,13 +1,1 @@
-{
-    "symbol": "BTCUSDT",
-    "timeframe": "1day",
-    "max_sw_cnt": 3,
-    "exit_perc": 80.0,
-    "tp_exit": false,
-    "tp_value": 0,
-    "direction": "Both",
-    "pi_exit": true,
-    "method_type": "Dynamic",
-    "price_type": "Percentage",
-    "pos_size_value": 20
-}
+{"symbol": "BTCUSDT", "timeframe": "1day", "max_sw_cnt_l": 3, "max_sw_cnt_s": 3, "exit_perc": 80.0, "tp_exit": false, "tp_value": 0, "direction": "Both", "pi_exit": true, "method_type": "Dynamic", "price_type": "Percentage", "pos_size_value": 20}
