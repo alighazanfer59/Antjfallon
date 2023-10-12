@@ -256,8 +256,8 @@ calculate_button = st.button("Backtest and Display Trades")
 if calculate_button:
     df = getdata(sel_ticker, mapped_timeframe, day)
     st.session_state.df = df
-    # Calculate Signals:
-    calculate_candle_type(df)
+    # # Calculate Signals:
+    # calculate_candle_type(df)
     dfl = calculate_gann_signals(df, max_sw_cnt = max_sw_cnt_l, exit_perc = exit_perc/100, side = "long")
     dfsh = calculate_gann_signals(df, max_sw_cnt = max_sw_cnt_s, exit_perc = exit_perc/100, side = "short")
     unique_columns = dfsh.columns.difference(dfl.columns)
@@ -313,10 +313,10 @@ if st.button("Copy Optimized Parameters to Bot"):
         st.subheader("Plot Chart:")
         st.plotly_chart(st.session_state.fig, use_container_width=True)
 
-    # Save the optimized parameters to JSON file
+    # Save the optimized parameters to JSON file with pretty formatting
     json_file_path = "optimized_params.json"
     with open(json_file_path, 'w') as f:
-        json.dump(final_params_dict, f)
+        json.dump(final_params_dict, f, indent=4)  # Set indent to 4 for 4 spaces of indentation
 
     # Display a success message
     st.success("Optimized parameters copied to the Bot Successfully!")

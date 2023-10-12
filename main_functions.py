@@ -233,7 +233,7 @@ kraken = ccxt.kraken()
 def start_time(days):
     timestamp = kraken.fetch_time() - days*86400*1000
     time = pd.to_datetime(timestamp, unit ='ms')
-    print(time)
+    print('Start Time', time)
     return timestamp
 
 def getdata_kraken(symbol, timeframe, days):
