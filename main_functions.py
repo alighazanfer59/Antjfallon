@@ -712,104 +712,104 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, side = "long"
     # Check if the length of sw_cnt values matches the number of rows in df
     if len(p_cnt_values) == len(df):
         # Assign the list of sw_cnt values to a new column 'sw_cnt' in df
-        df['sw_cnt'] = p_cnt_values
+        df[f'sw_cnt_{side}'] = p_cnt_values
     else:
         print("Length mismatch error between p_cnt_values and df.")
 
     # Initialize sw_trend with NaN
-    df['sw_trend'] = np.nan
+    df[f'sw_trend_{side}'] = np.nan
 
     # Create mask1 and mask2
     mask1 = (
-        ((df['sw_cnt'] == -(max_sw_cnt)) |
-         ((df['sw_cnt'] == 1) & (df['candle_type'] == 'outside_dn_up'))) &
-        (df['sw_cnt'].shift(1) == -(max_sw_cnt-1))  # & (df['sw_trend'].shift(1) != df['sw_trend'])
+        ((df[f'sw_cnt_{side}'] == -(max_sw_cnt)) |
+         ((df[f'sw_cnt_{side}'] == 1) & (df['candle_type'] == 'outside_dn_up'))) &
+        (df[f'sw_cnt_{side}'].shift(1) == -(max_sw_cnt-1))  # & (df['sw_trend'].shift(1) != df['sw_trend'])
     )
 
     mask2 = (
-        ((df['sw_cnt'] == (max_sw_cnt)) |
-         ((df['sw_cnt'] == -1) & (df['candle_type'] == 'outside_up_dn'))) &
-        (df['sw_cnt'].shift(1) == (max_sw_cnt-1))  # & (df['sw_trend'].shift(1) != df['sw_trend'])
+        ((df[f'sw_cnt_{side}'] == (max_sw_cnt)) |
+         ((df[f'sw_cnt_{side}'] == -1) & (df['candle_type'] == 'outside_up_dn'))) &
+        (df[f'sw_cnt_{side}'].shift(1) == (max_sw_cnt-1))  # & (df['sw_trend'].shift(1) != df['sw_trend'])
     )
 
     # Update sw_trend based on mask1 and mask2
-    df.loc[mask1, 'sw_trend'] = -1
-    df.loc[mask2, 'sw_trend'] = 1
+    df.loc[mask1, f'sw_trend_{side}'] = -1
+    df.loc[mask2, f'sw_trend_{side}'] = 1
 
     # Forward fill the sw_trend column to carry forward the last value
-    df['sw_trend'].ffill(inplace=True)
+    df[f'sw_trend_{side}'].ffill(inplace=True)
 
     trend_cnt = [0]
 
     # Loop through the DataFrame index
     for i in range(1, len(df)):
-        if df['sw_trend'].iloc[i - 1] == df['sw_trend'].iloc[i]:
+        if df[f'sw_trend_{side}'].iloc[i - 1] == df[f'sw_trend_{side}'].iloc[i]:
             trend_cnt.append(trend_cnt[i - 1] + 1)
         else:
             trend_cnt.append(1)
     # Append a 0 at the beginning to match the length of the DataFrame
     trend_cnt.insert(0, 0)
 
-    df['trend_cnt'] = trend_cnt[:-1]
+    df[f'trend_cnt_{side}'] = trend_cnt[:-1]
 
     # Initialize sw_top column with False
-    df['sw_top'] = False
-    df['sw_bottom'] = False
+    df[f'sw_top_{side}'] = False
+    df[f'sw_bottom_{side}'] = False
 
     # Calculate the maximum High value of past n candles when mask1 is true
     for i in range(len(df)):
-        if mask1[i] & (df['sw_trend'].iloc[i - 1] != df['sw_trend'].iloc[i]):
+        if mask1[i] & (df[f'sw_trend_{side}'].iloc[i - 1] != df[f'sw_trend_{side}'].iloc[i]):
             # Calculate the maximum High and its index
             high_range = df.loc[
-                df.index[max(0, i - int(df['trend_cnt'][i]))]:df.index[i]]['High']
+                df.index[max(0, i - int(df[f'trend_cnt_{side}'][i]))]:df.index[i]]['High']
             max_high = high_range.max()
             max_high_index = high_range.idxmax()
 
             # Mark the row where max_high occurs as True
-            df.at[max_high_index, 'sw_top'] = True
+            df.at[max_high_index, f'sw_top_{side}'] = True
 
-        elif mask2[i] & (df['sw_trend'].iloc[i - 1] != df['sw_trend'].iloc[i]):
+        elif mask2[i] & (df[f'sw_trend_{side}'].iloc[i - 1] != df[f'sw_trend_{side}'].iloc[i]):
             # Calculate the maximum High and its index
             low_range = df.loc[
-                df.index[max(0, i - int(df['trend_cnt'][i]))]:df.index[i]]['Low']
+                df.index[max(0, i - int(df[f'trend_cnt_{side}'][i]))]:df.index[i]]['Low']
             min_low = low_range.min()
             min_low_index = low_range.idxmin()
 
             # Mark the row where max_high occurs as True
-            df.at[min_low_index, 'sw_bottom'] = True
+            df.at[min_low_index, f'sw_bottom_{side}'] = True
 
-    df['sw_high_price'] = np.where(
-        df['sw_top'] == True, df['High'], np.nan)
-    df['sw_high_price'].fillna(method='ffill', inplace=True)
-    df['sw_low_price'] = np.where(
-        df['sw_bottom'] == True, df['Low'], np.nan)
-    df['sw_low_price'].fillna(method='ffill', inplace=True)
+    df[f'sw_high_price_{side}'] = np.where(
+        df[f'sw_top_{side}'] == True, df['High'], np.nan)
+    df[f'sw_high_price_{side}'].fillna(method='ffill', inplace=True)
+    df[f'sw_low_price_{side}'] = np.where(
+        df[f'sw_bottom_{side}'] == True, df['Low'], np.nan)
+    df[f'sw_low_price_{side}'].fillna(method='ffill', inplace=True)
 
     # Filter rows where sw_top is True and calculate sw_highs
-    df_tops = df[df['sw_top'] == True].copy()
-    df_tops['sw_highs'] = np.where(
+    df_tops = df[df[f'sw_top_{side}'] == True].copy()
+    df_tops[f'sw_highs_{side}'] = np.where(
         df_tops['High'] > df_tops['High'].shift(1), "HH", "LH")
 
     # Filter rows where sw_bottom is True and calculate sw_lows
-    df_bottoms = df[df['sw_bottom'] == True].copy()
-    df_bottoms['sw_lows'] = np.where(
+    df_bottoms = df[df[f'sw_bottom_{side}'] == True].copy()
+    df_bottoms[f'sw_lows_{side}'] = np.where(
         df_bottoms['Low'] < df_bottoms['Low'].shift(1), "LL", "HL")
 
     # Concatenate the DataFrames and select the desired columns
     df_swings = pd.concat([df_tops, df_bottoms], axis=1)
 
-    df_swings['trend'] = np.nan
-    df_swings['trend'] = np.where(((df_swings['sw_highs'] == 'HH') & (df_swings['sw_lows'].shift(1) == 'HL')) |
-                                  ((df_swings['sw_lows'] == 'HL') & (df_swings['sw_highs'].shift(1) == 'HH')),
+    df_swings[f'trend_{side}'] = np.nan
+    df_swings[f'trend_{side}'] = np.where(((df_swings[f'sw_highs_{side}'] == 'HH') & (df_swings[f'sw_lows_{side}'].shift(1) == 'HL')) |
+                                  ((df_swings[f'sw_lows_{side}'] == 'HL') & (df_swings[f'sw_highs_{side}'].shift(1) == 'HH')),
                                    "UP",
-                                   np.where(((df_swings['sw_lows'] == 'LL') & (df_swings['sw_highs'].shift(1) == 'LH')) |
-                                            ((df_swings['sw_highs'] == 'LH') & (df_swings['sw_lows'].shift(1) == 'LL')),
+                                   np.where(((df_swings[f'sw_lows_{side}'] == 'LL') & (df_swings[f'sw_highs_{side}'].shift(1) == 'LH')) |
+                                            ((df_swings[f'sw_highs_{side}'] == 'LH') & (df_swings[f'sw_lows_{side}'].shift(1) == 'LL')),
                                             "DOWN",
-                                            np.where(((df_swings['sw_lows'] == 'LL') & (df_swings['sw_highs'].shift(1) == 'HL')) |
-                                                     ((df_swings['sw_lows'] == 'LL') & (df_swings['sw_highs'].shift(1) == 'HH')) |
-                                                     ((df_swings['sw_lows'] == 'HL') & (df_swings['sw_highs'].shift(1) == 'LH')) |
-                                                     ((df_swings['sw_highs'] == 'LH') & (df_swings['sw_lows'].shift(1) == 'HL')) |
-                                                     ((df_swings['sw_highs'] == 'HH') & (df_swings['sw_lows'].shift(1) == 'LL')),
+                                            np.where(((df_swings[f'sw_lows_{side}'] == 'LL') & (df_swings[f'sw_highs_{side}'].shift(1) == 'HL')) |
+                                                     ((df_swings[f'sw_lows_{side}'] == 'LL') & (df_swings[f'sw_highs_{side}'].shift(1) == 'HH')) |
+                                                     ((df_swings[f'sw_lows_{side}'] == 'HL') & (df_swings[f'sw_highs_{side}'].shift(1) == 'LH')) |
+                                                     ((df_swings[f'sw_highs_{side}'] == 'LH') & (df_swings[f'sw_lows_{side}'].shift(1) == 'HL')) |
+                                                     ((df_swings[f'sw_highs_{side}'] == 'HH') & (df_swings[f'sw_lows_{side}'].shift(1) == 'LL')),
                                                      "UNCERTAIN",
                                                      np.nan
                                                     )
@@ -817,12 +817,12 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, side = "long"
                                              )
 
 
-    df_swings = df_swings[["sw_highs", "sw_lows", "trend"]]
+    df_swings = df_swings[[f"sw_highs_{side}", f"sw_lows_{side}", f"trend_{side}"]]
 
     df_ffill = pd.concat([df, df_swings], axis=1)
 
     # Define the columns to be copied
-    columns_to_copy = ["sw_highs", "sw_lows", "trend"]
+    columns_to_copy = [f"sw_highs_{side}", f"sw_lows_{side}", f"trend_{side}"]
 
     # Forward fill columns in df_ffill
     df_ffill[columns_to_copy] = df_ffill[columns_to_copy].fillna(method='ffill')
@@ -835,33 +835,33 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, side = "long"
     # Update the original DataFrame with the filled columns
     df = pd.concat([df, df_ffill[columns_to_copy]], axis=1)
 
-    df['trend'] = np.where(
-                            ((df['sw_lows'] == 'HL') & (df['High'] > df['sw_high_price'])),
+    df[f'trend_{side}'] = np.where(
+                            ((df[f'sw_lows_{side}'] == 'HL') & (df['High'] > df[f'sw_high_price_{side}'])),
                                "UP",
-                               np.where(((df['sw_highs'] == 'LH') & (df['Low'] < df['sw_low_price'])),
+                               np.where(((df[f'sw_highs_{side}'] == 'LH') & (df['Low'] < df[f'sw_low_price_{side}'])),
                                         "DOWN",
-                                        df['trend']
+                                        df[f'trend_{side}']
                                        )
                             )
     # df['trend'].fillna(method='ffill', inplace=True)
     if side == "long":
-        df[f'tsl_{side}'] = df['sw_low_price'].shift(1)
-        df[f'{side}_entry'] = df['sw_high_price'].shift(1)
+        df[f'tsl_{side}'] = df[f'sw_low_price_{side}'].shift(1)
+        df[f'{side}_entry'] = df[f'sw_high_price_{side}'].shift(1)
         
         df[f"{side}_Signal"] = np.where(
-                            ((df['sw_lows'] == "HL") | ((df['sw_highs'] == "HH") & (df['sw_lows'] == "HL"))) & 
-                            ((df['High'] > df['sw_high_price'].shift(1)) &
-                            (df['High'].shift(1) < df['sw_high_price'].shift(1)) &
-                            ((df['trend'].shift(1) == "UNCERTAIN") | (df['trend'] == "UP"))),
+                            ((df[f'sw_lows_{side}'] == "HL") | ((df[f'sw_highs_{side}'] == "HH") & (df[f'sw_lows_{side}'] == "HL"))) & 
+                            ((df['High'] > df[f'sw_high_price_{side}'].shift(1)) &
+                            (df['High'].shift(1) < df[f'sw_high_price_{side}'].shift(1)) &
+                            ((df[f'trend_{side}'].shift(1) == "UNCERTAIN") | (df[f'trend_{side}'] == "UP"))),
                             True,
                             False
                             )
         
-        df[f"{side}_Exit"] = np.where((df['sw_highs'] == "LH") & 
-                            (df['sw_trend'].shift(1) == 1.0) &
-                            (df['sw_trend'] == -1.0) &
-                            (df['trend'] == "UNCERTAIN"),  
-                            ((df['sw_high_price'] - df['sw_low_price'])*exit_perc + df['sw_low_price']), 
+        df[f"{side}_Exit"] = np.where((df[f'sw_highs_{side}'] == "LH") & 
+                            (df[f'sw_trend_{side}'].shift(1) == 1.0) &
+                            (df[f'sw_trend_{side}'] == -1.0) &
+                            (df[f'trend_{side}'] == "UNCERTAIN"),  
+                            ((df[f'sw_high_price_{side}'] - df[f'sw_low_price_{side}'])*exit_perc + df[f'sw_low_price_{side}']), 
                                 np.nan)
         
         df["pi_top"] = np.where(
@@ -872,23 +872,23 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, side = "long"
     
         
     else:
-        df[f'tsl_{side}'] = df['sw_high_price'].shift(1)
-        df[f'{side}_entry'] = df['sw_low_price'].shift(1)
+        df[f'tsl_{side}'] = df[f'sw_high_price_{side}'].shift(1)
+        df[f'{side}_entry'] = df[f'sw_low_price_{side}'].shift(1)
         
         df[f"{side}_Signal"] = np.where(
-                            ((df['sw_highs'] == "LH") | ((df['sw_lows'] == "LL") & (df['sw_highs'] == "LH"))) & 
-                            (df['Low'] < df['sw_low_price'].shift(1)) &
-                            (df['Low'].shift(1) > df['sw_low_price'].shift(1)) &
-                            ((df['trend'].shift(1) == "UNCERTAIN") | (df['trend'] == "DOWN")),  
+                            ((df[f'sw_highs_{side}'] == "LH") | ((df[f'sw_lows_{side}'] == "LL") & (df[f'sw_highs_{side}'] == "LH"))) & 
+                            (df['Low'] < df[f'sw_low_price_{side}'].shift(1)) &
+                            (df['Low'].shift(1) > df[f'sw_low_price_{side}'].shift(1)) &
+                            ((df[f'trend_{side}'].shift(1) == "UNCERTAIN") | (df[f'trend_{side}'] == "DOWN")),  
                             True, 
                             False
                             )
 
-        df[f"{side}_Exit"] = np.where((df['sw_lows'] == "HL") & 
-                            (df['sw_trend'].shift(1) == -1.0) &
-                            (df['sw_trend'] == 1.0) &
-                            (df['trend'] == "UNCERTAIN"),  
-                            (df['sw_high_price'] - (df['sw_high_price'] - df['sw_low_price'])*exit_perc), 
+        df[f"{side}_Exit"] = np.where((df[f'sw_lows_{side}'] == "HL") & 
+                            (df[f'sw_trend_{side}'].shift(1) == -1.0) &
+                            (df[f'sw_trend_{side}'] == 1.0) &
+                            (df[f'trend_{side}'] == "UNCERTAIN"),  
+                            (df[f'sw_high_price_{side}'] - (df[f'sw_high_price_{side}'] - df[f'sw_low_price_{side}'])*exit_perc), 
                                 np.nan)    
 
         df["pi_bottom"] = np.where(
@@ -897,7 +897,7 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, side = "long"
                             False
                             )
     
-    # st.write(df[300:500])
+    st.write(df[300:500])
     
     return df
 
