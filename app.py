@@ -112,9 +112,9 @@ with st.sidebar:
 
     # Take Profit Exit Checkbox and Value
     tp_exit = st.checkbox("Take Profit Exit")
-    tp_value = 0.38  # Default value
+    tp_perc = 0.38  # Default value
     if tp_exit:
-        tp_value = st.number_input("Take Profit [%]", min_value=0.0, max_value=1.0, value=tp_value)
+        tp_value = st.number_input("Take Profit [%]", min_value=0.0, max_value=1.0, value=tp_perc)
     else:
         tp_value = 0  # No take profit
 
