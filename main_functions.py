@@ -1434,3 +1434,12 @@ def calculate_position_size(
     print(f"Money needed to buy quantity Exceeded Total Balance, So Adjusting Qty : {qty}")
     
     return qty
+
+# Function to generate a centered category label
+def category_label(category_name, total_width=50, dash_character="-"):
+    # Calculate the number of dashes required to center the text
+    num_dashes = (total_width - len(category_name)) // 2
+    dashes = dash_character * num_dashes
+
+    # Create the centered category label
+    return f"{dashes} {category_name} {dashes}"

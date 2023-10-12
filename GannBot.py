@@ -175,12 +175,12 @@ try:
         df = pd.concat([dfl, dfsh[unique_columns]], axis=1)
         # Fetch the latest buy and sell signals, as well as stop loss levels, from your DataFrame 'df'
         row = df.iloc[-1]  # Assuming the last row contains the latest data
-
+        print(row)
         # Inside the 'if in_position:' block
         if in_position:
             print("IN POSITION BLOCK")
-            sl_long = row.tsl_long
-            sl_short = row.tsl_short
+            sl_long = row.tsl_long * (1-tsl_offset)
+            sl_short = row.tsl_short * (1+tsl_offset)
             amount = info["amount"]
             print("Side: ", amount)
             tp = info["tp"]

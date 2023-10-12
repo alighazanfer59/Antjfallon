@@ -64,6 +64,10 @@ tooltip_quote = "Position size value is specified in quote currency (i.e. USD)."
 tooltip_percentage = "Position size value is specified as a percentage of available equity."
 tt_method_type = """Fixed P/S: $1K, or 0.1 BTC
 Dynamic P/S: Max Risk [%]"""
+# Define the category label text
+setting_label = "Settings Long & Short"
+authen_label = "Login info"
+pos_label = "Position Size Calculator" 
 
 # Streamlit App Title
 st.title("Advanced Gann Swing Strategy")
@@ -74,10 +78,10 @@ with st.sidebar:
         st.session_state.show_log = not st.session_state.get("show_log", False)
     
     st.title("Strategy Parameters")
-    st.header("Position Size Calculator")
+    st.markdown(category_label(pos_label))
     direction = st.radio("Select Direction:", ["Both", "Short", "Long"], index=0)  # "Both" is the default value
     # Strategy inputs
-    method_type = st.selectbox("Position Size Type", pos_size_types, index=1, help=tt_method_type)
+    method_type = st.selectbox("Position Size", pos_size_types, index=1, help=tt_method_type)
     
     if method_type == "Dynamic":
         price_type = st.selectbox("Price Type", pos_size_price, index=2, help=tooltip_percentage)
@@ -95,31 +99,37 @@ with st.sidebar:
             value_label = "Percentage"
             value = st.number_input("Position Size Value (%)", value=20, help="Enter the percentage value for position size.")
     
+    # Create the centered category label
+    st.markdown(category_label(setting_label))
+
     # Input Parameter for max_sw_cnt
-    max_sw_cnt_l = st.number_input("Enter max_sw_cnt long:", min_value=1, value=3)
-    max_sw_cnt_s = st.number_input("Enter max_sw_cnt short:", min_value=1, value=3)
+    max_sw_cnt_l = st.number_input("Long Swing Count", min_value=1, value=3)
+    max_sw_cnt_s = st.number_input("Short Swing Count", min_value=1, value=3)
 
     # Exit Percentage
-    exit_perc = st.number_input("Uncertain Trend Exit Limit Percentage:", min_value=0.0, max_value=100.0, value=80.0)
+    long_exit_limit_en = st.checkbox("Check For Signs Of Trend Reversal", True)
+    exit_perc = st.number_input("Percentage For Limit Order Price Calculation", min_value=0.0, max_value=100.0, value=80.0)
 
     # Take Profit Exit Checkbox and Value
     tp_exit = st.checkbox("Take Profit Exit")
-    pi_exit = st.checkbox("Enable/ Disable Pi Exit", True)
     tp_value = 0.38  # Default value
     if tp_exit:
-        tp_value = st.number_input("Take Profit Percentage:", min_value=0.0, max_value=1.0, value=0.38)
+        tp_value = st.number_input("Take Profit [%]", min_value=0.0, max_value=1.0, value=tp_value)
     else:
         tp_value = 0  # No take profit
 
     # Trailing offset Exit Checkbox and Value
-    tsl_offset_en = st.checkbox("Trailing SL offset Enable/Disable")
+    tsl_offset_en = st.checkbox("Trailing SL offset Enable/Disable", True)
     tsl_offset_pct = 0.1
     if tsl_offset_en:
-        tsl_offset = st.number_input("Trailing SL offset Percentage:", min_value=0.0, max_value=100.0, step=0.1, value=0.1)
+        tsl_offset = st.number_input("Trailing SL Offset [%]", min_value=0.0, max_value=100.0, step=0.1, value=tsl_offset_pct)
     else:
         tsl_offset = 0  # No take profit
 
-
+    pi_exit = st.checkbox("Exit On Pi Cycle", True)
+    
+    # Create the centered category label
+    st.markdown(category_label(authen_label))
     # Check the value of sandbox_mode in kraken_config.py
     mode = kraken_config.sandbox_mode
     # Radio button to choose mode (sandbox/demo or live)
@@ -187,10 +197,10 @@ if st.session_state.show_log:
 # # Toggle button to open/close the log file
 # if st.session_state.show_log:
 #     open_log_file(main_display)
-st.write("Selected Method Type:", method_type)
-st.write("Selected Price Type:", price_type)
-st.write("Selected Value Label:", value_label)
-st.write("Value:", value)
+# st.write("Selected Method Type:", method_type)
+# st.write("Selected Price Type:", price_type)
+# st.write("Selected Value Label:", value_label)
+# st.write("Value:", value)
 
 # Input Parameters
 sel_ticker = st.selectbox("Select Ticker Symbol:", fut_tickers, index=fut_tickers.index("BTCUSDT"))
@@ -232,6 +242,7 @@ final_params_dict = {
     "method_type": method_type,
     "price_type": price_type,
     "pos_size_value": value,
+    "tsl_offset_en": tsl_offset_en,
     "tsl_offset" : tsl_offset,
 }
 
@@ -264,8 +275,8 @@ if calculate_button:
     dfs = pd.concat([dfl, dfsh[unique_columns]], axis=1)
     st.session_state.dfs = dfs
     # st.write(dfs)
-    tp_perc = 0 if tp_exit == False else tp_value
-    results_data, result_df = backtest(dfs, sel_ticker, commission=0.04/100, tp_perc = tp_perc, direction = direction, pi_exit = pi_exit, tsl_offset = tsl_offset)
+    # tp_perc = 0 if tp_exit == False else tp_value
+    results_data, result_df = backtest(dfs, sel_ticker, commission=0.04/100, tp_perc = tp_value, direction = direction, pi_exit = pi_exit, tsl_offset = tsl_offset)
     st.session_state.result_df = result_df
     # st.write(results_data)
     dfr = displayTrades(direction, **results_data)
