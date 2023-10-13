@@ -147,8 +147,10 @@ print("LOng Position", buy_pos)
 print("Short Position", sell_pos)
 
 
-tp_perc = 0 if tp_exit == False else tp_value  # added
-print("tp perc: ", tp_perc)
+tp_perc_long = 0 if tp_exit_long == False else tp_value_long*0.01
+print("TP perc Long: ", tp_perc_long)
+tp_perc_short = 0 if tp_exit_short == False else tp_value_short*0.01
+print("TP perc Short: ", tp_perc_short)
 
 try:
     try:
@@ -166,10 +168,10 @@ try:
         print('Close Price: ', close_price)
         print('\nFetching Signals Data...')
         dfl = calculate_gann_signals(
-            df, max_sw_cnt=max_sw_cnt_l, exit_perc=exit_perc / 100, side="long"
+            df, max_sw_cnt=max_sw_cnt_l, exit_perc=exit_perc_long, side="long"
         )
         dfsh = calculate_gann_signals(
-            df, max_sw_cnt=max_sw_cnt_s, exit_perc=exit_perc / 100, side="short"
+            df, max_sw_cnt=max_sw_cnt_s, exit_perc=exit_perc_long, side="short"
         )
         unique_columns = dfsh.columns.difference(dfl.columns)
         df = pd.concat([dfl, dfsh[unique_columns]], axis=1)
@@ -177,10 +179,11 @@ try:
         row = df.iloc[-1]  # Assuming the last row contains the latest data
         print(row)
         # Inside the 'if in_position:' block
+        # ---------------------------------------------Long position close check------------------------------
         if in_position:
             print("IN POSITION BLOCK")
-            sl_long = row.tsl_long * (1-tsl_offset)
-            sl_short = row.tsl_short * (1+tsl_offset)
+            sl_long = row.tsl_long * (1 - tsl_offset_long)
+            sl_short = row.tsl_short * (1 + tsl_offset_short)
             amount = info["amount"]
             print("Side: ", amount)
             tp = info["tp"]
@@ -202,7 +205,21 @@ try:
                         sellprice=info["price"],
                         filename=tradesfile,
                     )
-                elif row["High"] >= tp and tp_perc != 0:
+                elif row["High"] >= tp and tp_perc_long != 0:
+                    close_position(symbol, amount, "buy", "Long", tp)
+                    in_position = False
+                    buy_pos = False
+                    with open("order_info.json", "r") as f:
+                        json_order_info = f.read()
+                    # Convert the JSON data back to a dictionary
+                    info = json.loads(json_order_info)
+                    sellcsv(
+                        df,
+                        buyprice=read_tradefile(tradesfile, "long"),
+                        sellprice=info["price"],
+                        filename=tradesfile,
+                    )
+                elif row['pi_top'] and pi_exit:
                     close_position(symbol, amount, "buy", "Long", tp)
                     in_position = False
                     buy_pos = False
@@ -232,6 +249,7 @@ try:
                             sellprice=info["price"],
                             filename=tradesfile,
                         )
+        # ---------------------------------------------short position close check------------------------------
             elif sell_pos:
                 print("\nIn Short Position Block")
                 if row["High"] >= sl_short:
@@ -248,7 +266,21 @@ try:
                         sellprice=read_tradefile(tradesfile, "short"),
                         filename=tradesfile,
                     )
-                elif row["High"] <= tp and tp_perc != 0:
+                elif row["Low"] <= tp and tp_perc_short != 0:
+                    close_position(symbol, amount, "sell", "Short", tp)
+                    in_position = False
+                    sell_pos = False
+                    with open("order_info.json", "r") as f:
+                        json_order_info = f.read()
+                    # Convert the JSON data back to a dictionary
+                    info = json.loads(json_order_info)
+                    sellcsv(
+                        df,
+                        buyprice=info["price"],
+                        sellprice=read_tradefile(tradesfile, "short"),
+                        filename=tradesfile,
+                    )
+                elif row['pi_bottom'] and pi_exit:
                     close_position(symbol, amount, "sell", "Short", tp)
                     in_position = False
                     sell_pos = False
@@ -289,7 +321,7 @@ try:
             print("Position Size Value: ", pos_size_value)
 
             if row["long_Signal"]:
-                print("Get Long Signal, Taking Long Position")
+                print("Got Long Position Signal, Taking Long Position")
                 print("SL Long :", sl_long)
                 # Calculate position size
                 qty = calculate_position_size(
@@ -298,7 +330,7 @@ try:
 
                 print(f"Position Size: {qty}")
                 # Place a market buy order for a long position
-                place_market_order(symbol, qty, tp_perc, "buy", "long")
+                place_market_order(symbol, qty, tp_perc_long, "buy", "long")
                 with open("order_info.json", "r") as f:
                     json_order_info = f.read()
 
@@ -315,7 +347,7 @@ try:
 
                 print(f"Position Size: {qty}")
                 # Place a market sell order for a short position
-                place_market_order(symbol, qty, tp_perc, "sell", "short")
+                place_market_order(symbol, qty, tp_perc_short, "sell", "short")
                 with open("order_info.json", "r") as f:
                     json_order_info = f.read()
 
