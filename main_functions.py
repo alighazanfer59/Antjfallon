@@ -345,13 +345,18 @@ def create_background_shapes(df, trend_column, bg_colors):
 
     return background_shapes
 
-def plot_labels_high_low(df, label_params, fig):
+def plot_labels_high_low(df, label_params, fig, side):
+    variables = get_variables(side, df)
+    # Create variables with keys as variable names and values as column names
+    for variable_name, column_name in variables.items():
+        globals()[variable_name] = column_name
+        
     for label, params in label_params.items():
         label_data = pd.DataFrame()
         
         # Filter the DataFrame for 'sw_highs' and 'sw_lows' conditions
-        high_mask = (df['sw_highs'] == label) & df['sw_top']
-        low_mask = (df['sw_lows'] == label) & df['sw_bottom']
+        high_mask = (df[sw_highs] == label) & df[sw_top]
+        low_mask = (df[sw_lows] == label) & df[sw_bottom]
         
         label_data = pd.concat([df[high_mask], df[low_mask]])
 
@@ -668,7 +673,8 @@ def calculate_candle_type(df):
         )
     )
 
-def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, side = "long"):
+def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
+    # print(f'Exit percentage {side}: {exit_perc}')
     calculate_candle_type(df)
     
     # Initialize p_cnt with a list containing the initial value (0) for the first row
@@ -897,11 +903,11 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = 80/100, side = "long"
                             False
                             )
     
-    st.write(df[300:500])
+    # st.write(df[300:500])
     
     return df
 
-def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_exit = True, tsl_offset = 0.1/100):
+def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, tp_perc_short=0, pi_exit=True, tsl_offset_long_en=True, tsl_offset_short_en=True, tsl_offset_long_pct=0.1/100, tsl_offset_short_pct=0.1/100):
     in_position = False
     buy_pos = False
     sell_pos = False
@@ -915,14 +921,14 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
     # ---------------------------------------------long position close check------------------------------
         if in_position and buy_pos:
             
-            sl = row.tsl_long*(1-tsl_offset)
+            sl = row.tsl_long*(1-tsl_offset_long)
             if (row.Low <= sl):
                 selldates.append(index)
                 sellprices.append(row.Low)
                 in_position = False
                 buy_pos = False
                 exit_types.append("SL Hit")
-            elif (row.High >= tp) and (tp_perc != 0):
+            elif (row.High >= tp) and (tp_perc_long != 0):
                 selldates.append(index)
                 sellprices.append(tp)
                 in_position = False
@@ -945,7 +951,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
 
     # ---------------------------------------------short position close check------------------------------
         elif in_position and sell_pos:
-            sl = row.tsl_short*(1+tsl_offset)
+            sl = row.tsl_short*(1+tsl_offset_short)
             if (row.High >= sl):
                 buydates.append(index)
                 buyprices.append(row.High)
@@ -953,7 +959,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
                 sell_pos = False
                 exit_types.append("SL Hit")
                 
-            elif (row.Low <= tp) and (tp_perc != 0):
+            elif (row.Low <= tp) and (tp_perc_short != 0):
                 buydates.append(index)
                 buyprices.append(tp)
                 in_position = False
@@ -986,22 +992,20 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
                 buyprices.append(buyprice)
                 in_position = True
                 buy_pos = True
-                tp = buyprice * (1 + tp_perc)
+                tp = buyprice * (1 + tp_perc_long)
                 limit = np.nan
-                # tsl_offset = tsl_offset_pct/100 if tsl_offset_en == True else 0
-
+                tsl_offset_long = tsl_offset_long_pct if tsl_offset_long_en == True else 0
+                
             elif direction in ("Both", "Short") and row.short_Signal:
                 sellprice = row.short_entry
                 selldates.append(index)
                 sellprices.append(sellprice)
                 in_position = True
                 sell_pos = True
-                tp = sellprice / (1 + tp_perc)
+                tp = sellprice / (1 + tp_perc_short)
                 limit = np.nan
-                # tsl_offset = tsl_offset_pct/100 if tsl_offset_en == True else 0
-
-                    
-
+                tsl_offset_short = tsl_offset_short_pct if tsl_offset_short_en == True else 0
+                
     if len(buydates) == 0:
         print(f"No trades were made for {ticker}.")
     else:
@@ -1033,8 +1037,6 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc=0, pi_ex
         # Other results...
     }, results_df
 
-
-
 def displayTrades(direction="Both", **kwargs):
     st.write('Direction: ', direction)
     # Access the trade data and other results from kwargs
@@ -1060,9 +1062,27 @@ def displayTrades(direction="Both", **kwargs):
     # Add a column to indicate the trade side
     dfr['tradeSide'] = np.where(dfr['buydates'] < dfr['selldates'], 'Long', 'Short')
     
-    return dfr    
+    return dfr
 
-def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=1500):
+def get_variables(side, df):
+    # Initialize a dictionary to store variable names and corresponding column names
+    variables = {}
+
+    # Loop through the DataFrame columns
+    for col in df.columns:
+        if f'_{side}' in col:
+            # Remove the side from the column name
+            name_without_side = col.replace(f'_{side}', '')
+            variables[name_without_side] = col
+
+    return variables
+
+def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=250, side="long"):
+    # Get the variables dictionary
+    variables = get_variables(side, df)
+    # Create variables with keys as variable names and values as column names
+    for variable_name, column_name in variables.items():
+        globals()[variable_name] = column_name
     
     # Determine the desired y-axis range based on your data
     y_min = df['Low'].min()  # Replace 'Low' with the appropriate column name
@@ -1084,10 +1104,10 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=1500):
     annotations = []
 
     # Create sw_top marker trace
-    sw_top_markers = create_marker_trace(df, 'sw_top', 'triangle-up', 'High', 0.005, '', 'Trend Peaks', 'green')
+    sw_top_markers = create_marker_trace(df, sw_top, 'triangle-up', 'High', 0.005, '', 'Trend Peaks', 'green')
 
     # Create sw_bottom marker trace
-    sw_bottom_markers = create_marker_trace(df, 'sw_bottom', 'triangle-down', 'Low', -0.005, '', 'Trend Bottoms', 'red')
+    sw_bottom_markers = create_marker_trace(df, sw_bottom, 'triangle-down', 'Low', -0.005, '', 'Trend Bottoms', 'red')
 
     # Define colors for each trend type
     bg_colors = {
@@ -1101,7 +1121,7 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=1500):
     opacity_uncertain = 0.15
 
     # Create background shapes based on the "trend" column
-    background_shapes = create_background_shapes(df, 'trend', bg_colors)
+    background_shapes = create_background_shapes(df, trend, bg_colors)
 
     # Create the layout with a white background and the background shapes
     layout = go.Layout(
@@ -1134,7 +1154,7 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=1500):
     downtrend_color = 'red'
 
     # Create the zigzag trace
-    zigzag_trace = create_zigzag_trace(df, 'sw_top', 'sw_bottom', uptrend_color, downtrend_color)
+    zigzag_trace = create_zigzag_trace(df, sw_top, sw_bottom, uptrend_color, downtrend_color)
 
     # Determine the number of data points to display by default
     num_data_points = min(len(df), visible_data_points)
@@ -1244,13 +1264,13 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=1500):
         'HL': {'color': 'purple', 'textposition': 'top center'},
     }
 
-    plot_labels_high_low(df, label_params, fig)
+    plot_labels_high_low(df, label_params, fig, side)
 
     # Plot the Long signals as green arrows
     long_signals = df[df['long_Signal']]
     fig.add_trace(go.Scatter(
         x=long_signals.index,
-        y=df['sw_high_price'][long_signals.index],
+        y=df[sw_high_price][long_signals.index],
         mode='markers',
         marker=dict(
             symbol='arrow-bar-right',
@@ -1264,7 +1284,7 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=1500):
     short_signals = df[df['short_Signal']]
     fig.add_trace(go.Scatter(
         x=short_signals.index,
-        y=df['sw_low_price'][short_signals.index],
+        y=df[sw_low_price][short_signals.index],
         mode='markers',
         marker=dict(
             symbol='arrow-bar-right',
@@ -1357,7 +1377,7 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=1500):
             range=[y_min, y_max],  # adjust scaling at y-axis
             # autorange=True,  # Set autorange to True to enable autoscaling
         ),
-        height=800,  # Set the desired height in pixels
+        height=600,  # Set the desired height in pixels
         title='Advanced Gann Swing Candlestick Chart',
         xaxis_title='Date',
         yaxis_title='Price',

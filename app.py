@@ -54,6 +54,24 @@ fut_tickers = ['SANDUSDT', 'DGBUSDT', 'EGLDUSDT', 'BTCUSDT', 'GALAUSDT', 'TUSDT'
                'PERPUSDT', 'NMRUSDT', 'COTIUSDT', 'APTUSDT', 'IDUSDT', 'BNBUSDT', 'FTMUSDT', 'AUDIOUSDT', 'TRXUSDT', 'GTCUSDT', 'BATUSDT', 'ACHUSDT', 'STGUSDT', 
                'SUIUSDT', 'ICPUSDT', 'STMXUSDT', 'KLAYUSDT', 'TRUUSDT', 'ADAUSDT', 'ROSEUSDT', 'NEARUSDT']
 
+# # Initialize session state
+# if 'max_sw_cnt_l' not in st.session_state:
+#     st.session_state.max_sw_cnt_l = 3
+#     st.session_state.max_sw_cnt_s = 3
+#     st.session_state.tp_exit_long = False
+#     st.session_state.tp_value_long = 15
+#     st.session_state.tsl_offset_long_en = True
+#     st.session_state.tsl_offset_pct_long = 0.1
+#     st.session_state.exit_limit_long_en = True
+#     st.session_state.exit_perc_long_input = 80.0
+#     st.session_state.pi_exit = True
+#     st.session_state.tp_exit_short = True
+#     st.session_state.tp_value_short = 38
+#     st.session_state.tsl_offset_short_en = True
+#     st.session_state.tsl_offset_pct_short = 0.1
+#     st.session_state.exit_limit_short_en = True
+#     st.session_state.exit_perc_short_input = 80.0
+
 # Constants for position size types and price types
 pos_size_types = ['Fixed', 'Dynamic']
 pos_size_price = ['Quote', 'Base', 'Percentage']
@@ -65,7 +83,9 @@ tooltip_percentage = "Position size value is specified as a percentage of availa
 tt_method_type = """Fixed P/S: $1K, or 0.1 BTC
 Dynamic P/S: Max Risk [%]"""
 # Define the category label text
-setting_label = "Settings Long & Short"
+swing_label = "Swing"
+setting_label_long = "Settings Long"
+setting_label_short = "Settings Short"
 authen_label = "Login info"
 pos_label = "Position Size Calculator" 
 
@@ -100,34 +120,78 @@ with st.sidebar:
             value = st.number_input("Position Size Value (%)", value=20, help="Enter the percentage value for position size.")
     
     # Create the centered category label
-    st.markdown(category_label(setting_label))
+    st.markdown(category_label(swing_label))
 
     # Input Parameter for max_sw_cnt
     max_sw_cnt_l = st.number_input("Long Swing Count", min_value=1, value=3)
     max_sw_cnt_s = st.number_input("Short Swing Count", min_value=1, value=3)
 
-    # Exit Percentage
-    long_exit_limit_en = st.checkbox("Check For Signs Of Trend Reversal", True)
-    exit_perc = st.number_input("Percentage For Limit Order Price Calculation", min_value=0.0, max_value=100.0, value=80.0)
+    # Create a dictionary to map options to values
+    side_mapping = {
+        "Long": "long",
+        "Short": "short"
+    }
 
+    # Create a selectbox for the user to choose the side
+    selected_option = st.selectbox("Select showSide to Plot Chart:", list(side_mapping.keys()))
+    # Get the corresponding value based on the selected option
+    showSide = side_mapping[selected_option]
+    st.write("showSide Selected for Chart: ", showSide)
+    
+    # Create the centered category label
+    st.markdown(category_label(setting_label_long))
     # Take Profit Exit Checkbox and Value
-    tp_exit = st.checkbox("Take Profit Exit")
-    tp_perc = 0.38  # Default value
-    if tp_exit:
-        tp_value = st.number_input("Take Profit [%]", min_value=0.0, max_value=1.0, value=tp_perc)
-    else:
-        tp_value = 0  # No take profit
+    tp_exit_long = st.checkbox("Take Profit Exit", False, key='tpl')
+    tp_value_long = st.number_input("Take Profit [%]", min_value=0, max_value=100, value=15, key='tp_value_long')
+    tp_perc_long = 0 if tp_exit_long == False else tp_value_long*0.01
 
     # Trailing offset Exit Checkbox and Value
-    tsl_offset_en = st.checkbox("Trailing SL offset Enable/Disable", True)
-    tsl_offset_pct = 0.1
-    if tsl_offset_en:
-        tsl_offset = st.number_input("Trailing SL Offset [%]", min_value=0.0, max_value=100.0, step=0.1, value=tsl_offset_pct)
-    else:
-        tsl_offset = 0  # No take profit
-
-    pi_exit = st.checkbox("Exit On Pi Cycle", True)
+    tsl_offset_long_en = st.checkbox("Trailing SL offset Enable/Disable", True, key='tsl_offset_long')
+    tsl_offset_pct_long = st.number_input("Trailing SL Offset [%]", min_value=0.0, max_value=100.0, step=0.1, value=0.1, key='tsl_offset_pct_long')
+    tsl_offset_long = tsl_offset_pct_long * 0.01
     
+    # Exit Percentage
+    exit_limit_long_en = st.checkbox("Check For Signs Of Trend Reversal", True, key='exit_long')
+    exit_perc_long_input = st.number_input("Percentage For Limit Order Price Calculation", min_value=0.0, max_value=100.0, value=80.0, key='exit_perc_long_input')
+    exit_perc_long = 0 if exit_limit_long_en == False else exit_perc_long_input*0.01
+    
+    # Create the centered category label
+    st.markdown(category_label(setting_label_short))
+    # Take Profit Exit Checkbox and Value
+    tp_exit_short = st.checkbox("Take Profit Exit", True, key="tps")
+    tp_value_short = st.number_input("Take Profit [%]", min_value=0, max_value=100, value=38, key='tp_value_short')
+    tp_perc_short = 0 if tp_exit_short == False else tp_value_short*0.01
+
+    # Trailing offset Exit Checkbox and Value
+    tsl_offset_short_en = st.checkbox("Trailing SL offset Enable/Disable", True, key='tsl_offset_short')
+    tsl_offset_pct_short = st.number_input("Trailing SL Offset [%]", min_value=0.0, max_value=100.0, step=0.1, value=0.1, key='tsl_offset_pct_short')
+    tsl_offset_short = tsl_offset_pct_short * 0.01
+    
+    # Exit Percentage
+    exit_limit_short_en = st.checkbox("Check For Signs Of Trend Reversal", True, key='exit_short')
+    exit_perc_short_input = st.number_input("Percentage For Limit Order Price Calculation", min_value=0.0, max_value=100.0, value=80.0, key='exit_perc_short_input')
+    exit_perc_short = 0 if exit_limit_short_en == False else exit_perc_short_input*0.01
+    
+    pi_exit = st.checkbox("Exit On Pi Cycle", True, key='pi_exit')
+    
+    # Reset button to set all input values to their defaults
+    # if st.button("Reset to Defaults"):
+    #     max_sw_cnt_l = 3
+    #     max_sw_cnt_s = 3
+    #     tp_exit_long = False
+    #     tp_value_long = 15
+    #     tsl_offset_long_en = True
+    #     tsl_offset_pct_long = 0.1
+    #     exit_limit_long_en = True
+    #     exit_perc_long_input = 80.0
+    #     tp_exit_short = True
+    #     tp_value_short = 38
+    #     tsl_offset_short_en = True
+    #     tsl_offset_pct_short = 0.1
+    #     exit_limit_short_en = True
+    #     exit_perc_short_input = 80.0
+    #     pi_exit = True
+
     # Create the centered category label
     st.markdown(category_label(authen_label))
     # Check the value of sandbox_mode in kraken_config.py
@@ -194,6 +258,25 @@ if 'show_log' not in st.session_state:
 if st.session_state.show_log:
     open_log_file(main_display)
 
+# # Print input values for debugging
+# st.write("Long Swing Count (max_sw_cnt_l):", max_sw_cnt_l)
+# st.write("Short Swing Count (max_sw_cnt_s):", max_sw_cnt_s)
+# st.write("Take Profit Exit Long (tp_exit_long):", tp_exit_long)
+# st.write("Take Profit % Long (tp_value_long):", tp_perc_long)
+# st.write("Trailing SL Offset Long Enable/Disable (tsl_offset_long_en):", tsl_offset_long_en)
+# st.write("Trailing SL Offset % Long (tsl_offset_pct_long):", tsl_offset_long)
+# st.write("Exit Percentage Long Enable (exit_limit_long_en):", exit_limit_long_en)
+# st.write("Percentage for Limit Order Price Calculation Long (exit_perc_long_input):", exit_perc_long)
+
+# st.write("Take Profit Exit Short (tp_exit_short):", tp_exit_short)
+# st.write("Take Profit % Short (tp_value_short):", tp_perc_short)
+# st.write("Trailing SL Offset Short Enable/Disable (tsl_offset_short_en):", tsl_offset_short_en)
+# st.write("Trailing SL Offset % Short (tsl_offset_pct_short):", tsl_offset_short)
+# st.write("Exit Percentage Short Enable (exit_limit_short_en):", exit_limit_short_en)
+# st.write("Percentage for Limit Order Price Calculation Short (exit_perc_short_input):", exit_perc_short)
+
+# st.write("Exit on Pi Cycle (pi_exit):", pi_exit)
+
 # # Toggle button to open/close the log file
 # if st.session_state.show_log:
 #     open_log_file(main_display)
@@ -234,16 +317,23 @@ final_params_dict = {
     "timeframe": sel_tf,
     "max_sw_cnt_l": max_sw_cnt_l,
     "max_sw_cnt_s": max_sw_cnt_s,
-    "exit_perc": exit_perc,
-    "tp_exit": tp_exit,
-    "tp_value": tp_value,
+    "tp_exit_long": tp_exit_long,
+    "tp_perc_long": tp_perc_long,
+    "tsl_offset_long_en": tsl_offset_long_en,
+    "tsl_offset_long": tsl_offset_long,
+    "exit_limit_long_en": exit_limit_long_en,
+    "exit_perc_long": exit_perc_long,
+    "tp_exit_short": tp_exit_short,
+    "tp_perc_short": tp_perc_short,
+    "tsl_offset_short_en": tsl_offset_short_en,
+    "tsl_offset_short": tsl_offset_short,
+    "exit_limit_short_en": exit_limit_short_en,
+    "exit_perc_short": exit_perc_short,
     "direction": direction,  # Add the "direction" parameter to the dictionary
     "pi_exit": pi_exit,
     "method_type": method_type,
     "price_type": price_type,
     "pos_size_value": value,
-    "tsl_offset_en": tsl_offset_en,
-    "tsl_offset" : tsl_offset,
 }
 
 # Define a function to initialize the session state
@@ -269,14 +359,15 @@ if calculate_button:
     st.session_state.df = df
     # # Calculate Signals:
     # calculate_candle_type(df)
-    dfl = calculate_gann_signals(df, max_sw_cnt = max_sw_cnt_l, exit_perc = exit_perc/100, side = "long")
-    dfsh = calculate_gann_signals(df, max_sw_cnt = max_sw_cnt_s, exit_perc = exit_perc/100, side = "short")
+    dfl = calculate_gann_signals(df, max_sw_cnt = max_sw_cnt_l, exit_perc = exit_perc_long, side = "long")
+    dfsh = calculate_gann_signals(df, max_sw_cnt = max_sw_cnt_s, exit_perc = exit_perc_short, side = "short")
     unique_columns = dfsh.columns.difference(dfl.columns)
     dfs = pd.concat([dfl, dfsh[unique_columns]], axis=1)
     st.session_state.dfs = dfs
     # st.write(dfs)
     # tp_perc = 0 if tp_exit == False else tp_value
-    results_data, result_df = backtest(dfs, sel_ticker, commission=0.04/100, tp_perc = tp_value, direction = direction, pi_exit = pi_exit, tsl_offset = tsl_offset)
+    results_data, result_df = backtest(dfs, sel_ticker, direction=direction, commission=0.04/100, tp_perc_long=tp_perc_long, tp_perc_short=tp_perc_short, pi_exit = pi_exit, 
+                                       tsl_offset_long_en=tsl_offset_long_en, tsl_offset_short_en=tsl_offset_short_en, tsl_offset_long_pct=tsl_offset_long, tsl_offset_short_pct=tsl_offset_short)
     st.session_state.result_df = result_df
     # st.write(results_data)
     dfr = displayTrades(direction, **results_data)
@@ -290,13 +381,14 @@ if calculate_button:
     # st.plotly_chart(fig)
 # Create a button to toggle the chart's fullscreen mode
 if st.button("Open Fullscreen Chart"):
+    # st.write('showSide Selected: ', showSide)
     st.write(st.session_state.result_df)
     st.subheader('Trades Data')
     st.write(st.session_state.dfr)
     with st.expander("Fullscreen Chart", expanded=True):
         # Create a Plotly Go figure with your chart data
         try:
-            fig = plot_advanced_gann_swing_chart(st.session_state.dfs, st.session_state.dfr)
+            fig = plot_advanced_gann_swing_chart(st.session_state.dfs, st.session_state.dfr, side= showSide)
             st.session_state.fig = fig
             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
