@@ -907,7 +907,7 @@ def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
     
     return df
 
-def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, tp_perc_short=0, pi_exit=True, tsl_offset_long_en=True, tsl_offset_short_en=True, tsl_offset_long_pct=0.1/100, tsl_offset_short_pct=0.1/100):
+def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, tp_perc_short=0, pi_exit=True, tsl_offset_long_en=True, tsl_offset_short_en=True, tsl_offset_long_pct=0.1/100, tsl_offset_short_pct=0.1/100, init_sl_offset_long=0.1/100, init_sl_offset_short=0.1/100):
     in_position = False
     buy_pos = False
     sell_pos = False
@@ -921,7 +921,8 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, 
     # ---------------------------------------------long position close check------------------------------
         if in_position and buy_pos:
             
-            sl = row.tsl_long*(1-tsl_offset_long)
+            tsl = row.tsl_long*(1-tsl_offset_long)
+            sl = max(init_sl, tsl)
             if (row.Low <= sl):
                 selldates.append(index)
                 sellprices.append(row.Low)
@@ -951,7 +952,8 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, 
 
     # ---------------------------------------------short position close check------------------------------
         elif in_position and sell_pos:
-            sl = row.tsl_short*(1+tsl_offset_short)
+            tsl = row.tsl_short*(1+tsl_offset_short)
+            sl = min(init_sl, tsl)
             if (row.High >= sl):
                 buydates.append(index)
                 buyprices.append(row.High)
@@ -994,6 +996,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, 
                 buy_pos = True
                 tp = buyprice * (1 + tp_perc_long)
                 limit = np.nan
+                init_sl = row.tsl_long*(1-init_sl_offset_long)
                 tsl_offset_long = tsl_offset_long_pct if tsl_offset_long_en == True else 0
                 
             elif direction in ("Both", "Short") and row.short_Signal:
@@ -1004,6 +1007,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, 
                 sell_pos = True
                 tp = sellprice / (1 + tp_perc_short)
                 limit = np.nan
+                init_sl = row.tsl_short*(1+init_sl_offset_short)
                 tsl_offset_short = tsl_offset_short_pct if tsl_offset_short_en == True else 0
                 
     if len(buydates) == 0:

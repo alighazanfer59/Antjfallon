@@ -140,6 +140,10 @@ with st.sidebar:
     
     # Create the centered category label
     st.markdown(category_label(setting_label_long))
+    
+    init_sl_offset_long_input = st.number_input("Initial SL Offset [%]", min_value=0.0, max_value=100.0, step=0.1, value=0.1, key='i_sl_offset_pct_long')
+    init_sl_offset_long = init_sl_offset_long_input * 0.01
+    
     # Take Profit Exit Checkbox and Value
     tp_exit_long = st.checkbox("Take Profit Exit", False, key='tpl')
     tp_value_long = st.number_input("Take Profit [%]", min_value=0, max_value=100, value=15, key='tp_value_long')
@@ -157,6 +161,10 @@ with st.sidebar:
     
     # Create the centered category label
     st.markdown(category_label(setting_label_short))
+    
+    init_sl_offset_short_input = st.number_input("Initial SL Offset [%]", min_value=0.0, max_value=100.0, step=0.1, value=0.1, key='i_sl_offset_pct_short')
+    init_sl_offset_short = init_sl_offset_short_input * 0.01
+    
     # Take Profit Exit Checkbox and Value
     tp_exit_short = st.checkbox("Take Profit Exit", True, key="tps")
     tp_value_short = st.number_input("Take Profit [%]", min_value=0, max_value=100, value=38, key='tp_value_short')
@@ -317,6 +325,8 @@ final_params_dict = {
     "timeframe": sel_tf,
     "max_sw_cnt_l": max_sw_cnt_l,
     "max_sw_cnt_s": max_sw_cnt_s,
+    "init_sl_offset_long": init_sl_offset_long,
+    "init_sl_offset_short": init_sl_offset_short,
     "tp_exit_long": tp_exit_long,
     "tp_perc_long": tp_perc_long,
     "tsl_offset_long_en": tsl_offset_long_en,
@@ -367,7 +377,8 @@ if calculate_button:
     # st.write(dfs)
     # tp_perc = 0 if tp_exit == False else tp_value
     results_data, result_df = backtest(dfs, sel_ticker, direction=direction, commission=0.04/100, tp_perc_long=tp_perc_long, tp_perc_short=tp_perc_short, pi_exit = pi_exit, 
-                                       tsl_offset_long_en=tsl_offset_long_en, tsl_offset_short_en=tsl_offset_short_en, tsl_offset_long_pct=tsl_offset_long, tsl_offset_short_pct=tsl_offset_short)
+                                       tsl_offset_long_en=tsl_offset_long_en, tsl_offset_short_en=tsl_offset_short_en, tsl_offset_long_pct=tsl_offset_long, 
+                                       tsl_offset_short_pct=tsl_offset_short, init_sl_offset_long=init_sl_offset_long, init_sl_offset_short=init_sl_offset_short)
     st.session_state.result_df = result_df
     # st.write(results_data)
     dfr = displayTrades(direction, **results_data)
