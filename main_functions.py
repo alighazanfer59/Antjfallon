@@ -394,14 +394,14 @@ def create_zigzag_trace(df, sw_top_column, sw_bottom_column, uptrend_color, down
     for index, row in df.iterrows():
         if row[sw_top_column]:
             current_trend = 1
+            zigzag_color = uptrend_color
         elif row[sw_bottom_column]:
             current_trend = -1
+            zigzag_color = downtrend_color
 
         if current_trend != prev_trend:
             zigzag_x.append(index)
             zigzag_y.append(row['High'] if current_trend == 1 else row['Low'])
-            zigzag_colors.append(zigzag_color)
-            zigzag_color = uptrend_color if current_trend == 1 else downtrend_color
 
         prev_trend = current_trend
 
@@ -409,10 +409,9 @@ def create_zigzag_trace(df, sw_top_column, sw_bottom_column, uptrend_color, down
         x=zigzag_x,
         y=zigzag_y,
         mode='lines',
-        line=dict(width=2),
+        line=dict(width=2, color=zigzag_color),  # Set the color of the zigzag line based on the current trend
         name='Zigzag Line',
-        hoverinfo='none',
-        marker=dict(color=zigzag_colors)
+        hoverinfo='none'
     )
 
     return zigzag_trace
@@ -1092,6 +1091,8 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=250, side="long"
     y_min = df['Low'].min()  # Replace 'Low' with the appropriate column name
     y_max = df['High'].max()  # Replace 'High' with the appropriate column name
 
+    bull_candle = '#e7bf4f'
+    bearish_candle = '#497ad2'
     # Create a candlestick trace
     candlestick = go.Candlestick(
         x=df.index,
@@ -1099,19 +1100,21 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=250, side="long"
         high=df['High'],
         low=df['Low'],
         close=df['Close'],
-        increasing_line_color='green',
-        decreasing_line_color='red',
+        increasing_line_color=bull_candle,  # Bull candle outline color
+        decreasing_line_color=bearish_candle,    # Bear candle outline color
+        increasing_fillcolor=bull_candle,  # Bull candle fill color
+        decreasing_fillcolor=bearish_candle,  # Bear candle fill color
         name='Candles',
     )
 
-    # Create text annotations for sw_cnt on top of each candle
+# Create text annotations for sw_cnt on top of each candle
     annotations = []
 
     # Create sw_top marker trace
-    sw_top_markers = create_marker_trace(df, sw_top, 'triangle-up', 'High', 0.005, '', 'Trend Peaks', 'green')
+    sw_top_markers = create_marker_trace(df, sw_top, 'triangle-up', 'High', 0.005, '', 'Trend Peaks', '#FF9800')
 
     # Create sw_bottom marker trace
-    sw_bottom_markers = create_marker_trace(df, sw_bottom, 'triangle-down', 'Low', -0.005, '', 'Trend Bottoms', 'red')
+    sw_bottom_markers = create_marker_trace(df, sw_bottom, 'triangle-down', 'Low', -0.005, '', 'Trend Bottoms', '#2962ff')
 
     # Define colors for each trend type
     bg_colors = {
@@ -1127,19 +1130,16 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=250, side="long"
     # Create background shapes based on the "trend" column
     background_shapes = create_background_shapes(df, trend, bg_colors)
 
-    # Create the layout with a white background and the background shapes
+    # Initially set the shapes property to an empty list to hide the background traces
     layout = go.Layout(
-        shapes=background_shapes,
+        shapes=[],  # Initially empty to hide the background traces
         showlegend=False,
-        # xaxis=dict(showgrid=True, gridcolor='black'),  # Set gridcolor to 'black' for x-axis
-        # yaxis=dict(showgrid=True, gridcolor='black'),  # Set gridcolor to 'black' for y-axis
-        # plot_bgcolor='white'
     )
 
     # Define a button to toggle the visibility of background traces
     toggle_button = dict(
         type="buttons",
-        showactive=False,
+        showactive=True,
         buttons=[
             dict(label="Show Background Traces",
                     method="relayout",
@@ -1148,14 +1148,14 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=250, side="long"
                     method="relayout",
                     args=["shapes", []]),  # Empty list to hide the shapes
         ],
-        x=1.15,  # Adjust the x position to move the button to the right
-        y=0.15,   # Adjust the y position to place it below the legends
+        x=1.15,
+        y=0.15,
     )
     layout["updatemenus"] = [toggle_button]
 
     # Define colors for uptrend and downtrend zigzag lines
-    uptrend_color = 'green'
-    downtrend_color = 'red'
+    uptrend_color = '#FF9800'
+    downtrend_color = '#FF9800'
 
     # Create the zigzag trace
     zigzag_trace = create_zigzag_trace(df, sw_top, sw_bottom, uptrend_color, downtrend_color)
@@ -1256,16 +1256,17 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=250, side="long"
         tsl_shapes.extend(trade_tsl_shapes)
 
     fig = go.Figure(
-        data=[candlestick, sw_top_markers, sw_bottom_markers, zigzag_trace] + tsl_shapes,  # Include TSL shapes here
+        data=tsl_shapes + [candlestick, sw_top_markers, sw_bottom_markers, zigzag_trace],  # Include TSL shapes first
         layout=layout,
     )
 
+
     # Define parameters for each label
     label_params = {
-        'HH': {'color': 'green', 'textposition': 'bottom center'},
-        'LH': {'color': 'red', 'textposition': 'bottom center'},
-        'LL': {'color': 'blue', 'textposition': 'top center'},
-        'HL': {'color': 'purple', 'textposition': 'top center'},
+        'HH': {'color': '#FF9800', 'textposition': 'bottom center'},
+        'LH': {'color': '#2962ff', 'textposition': 'bottom center'},
+        'LL': {'color': '#2962ff', 'textposition': 'top center'},
+        'HL': {'color': '#FF9800', 'textposition': 'top center'},
     }
 
     plot_labels_high_low(df, label_params, fig, side)
