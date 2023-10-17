@@ -1417,13 +1417,14 @@ def open_log_file(log_display):
 # Function to calculate position size
 def calculate_position_size(
     method_type, price_type, value, sl_price, 
-    symbol, exchange
+    symbol, exchange, backtest=False, current_balance=None, 
+    entry_price=None
 ):
     # Get the current ticker for the symbol
-    ticker = exchange.fetch_ticker(symbol)
-    entry_price = ticker['last']
-    sym_quote = symbol[-3:]
-    total_bal = exchange.fetch_balance()['total'][sym_quote]
+    # ticker = exchange.fetch_ticker(symbol)
+    entry_price = entry_price #if backtest else ticker['last']  # Use provided entry_price during backtest
+    sym_quote = symbol[-4:]
+    total_bal = current_balance #if backtest else exchange.fetch_balance()['total'][sym_quote]  # Use provided total_bal during backtest
     print('Entry Price: ', entry_price)
     print('Total Balance: ', total_bal)
     print('Symbol: ', symbol)
@@ -1436,7 +1437,10 @@ def calculate_position_size(
         elif price_type == 'Base':
             qty_ = value
         elif price_type == 'Percentage':
-            qty_ = (exchange.fetch_balance()['total'][sym_quote] * (value * 0.01)) / entry_price
+            if backtest:
+                qty_ = (total_bal * (value * 0.01)) / entry_price
+            else:    
+                qty_ = (exchange.fetch_balance()['total'][sym_quote] * (value * 0.01)) / entry_price
     elif method_type == 'Dynamic':
         if price_type == 'Quote':
             qty_quote = (entry_price / ((abs(entry_price - sl_price)) / value))
@@ -1456,7 +1460,7 @@ def calculate_position_size(
     if money_needed > total_bal:
         qty_ = total_bal / entry_price
         qty = round(qty_, 3)
-    print(f"Money needed to buy quantity Exceeded Total Balance, So Adjusting Qty : {qty}")
+        print(f"Money needed to buy quantity Exceeded Total Balance, So Adjusting Qty : {qty}")
     
     return qty
 
