@@ -169,7 +169,8 @@ def check_authentication_and_display(mode_choice):
         error_message = st.error(error_message)
         time.sleep(5)  # Wait for 5 seconds
         error_message.empty()  # Clear the error message
-
+    
+    return exchange
 
 
 # st.write('mode is set to : ', mode)
@@ -906,10 +907,20 @@ def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
     
     return df
 
-def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, tp_perc_short=0, pi_exit=True, tsl_offset_long_en=True, tsl_offset_short_en=True, tsl_offset_long_pct=0.1/100, tsl_offset_short_pct=0.1/100, init_sl_offset_long=0.1/100, init_sl_offset_short=0.1/100):
+def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_perc_long=0, tp_perc_short=0, pi_exit=True, 
+             tsl_offset_long_en=True, tsl_offset_short_en=True, tsl_offset_long_pct=0.1/100, tsl_offset_short_pct=0.1/100, 
+             init_sl_offset_long=0.1/100, init_sl_offset_short=0.1/100, initial_capital=10000, method_type='Fixed', price_type='Percentage', value=20):
+    
     in_position = False
     buy_pos = False
     sell_pos = False
+    is_hit_buy_pos = False
+    is_hit_sell_pos = False
+    # Initialize current_balance as a list with the initial capital
+    current_balance = [initial_capital]
+    position_sizes = []
+    profit_or_loss = []
+    balance_in_use = 0  # Initialize profit_or_loss to 0
 
     results_df = pd.DataFrame()
     buydates, buyprices = [], []
@@ -917,7 +928,9 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, 
     exit_types = []
 
     for index, row in df.iterrows():
-    # ---------------------------------------------long position close check------------------------------
+        balance_in_use = 0  # Reset balance_in_use to 0 before calculating for new trades
+        # profit_or_loss = 0
+# ---------------------------------------------long position close check------------------------------
         if in_position and buy_pos:
             
             tsl = row.tsl_long*(1-tsl_offset_long)
@@ -927,28 +940,37 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, 
                 sellprices.append(row.Low)
                 in_position = False
                 buy_pos = False
+                is_hit_buy_pos = True
                 exit_types.append("SL Hit")
             elif (row.High >= tp) and (tp_perc_long != 0):
                 selldates.append(index)
                 sellprices.append(tp)
                 in_position = False
                 buy_pos = False
+                is_hit_buy_pos = True
                 exit_types.append("TP Hit")
             elif (row.pi_top) and (pi_exit):
                 selldates.append(index)
                 sellprices.append(row.High)
                 in_position = False
                 buy_pos = False
+                is_hit_buy_pos = True
                 exit_types.append("Pi Cycle")
             elif row.long_Exit > 0:
                 limit = row.long_Exit
-            elif row.Low <= limit:
-                selldates.append(index)
-                sellprices.append(limit)
-                in_position = False
-                buy_pos = False
-                exit_types.append("Limit price Hit due to uncertain trend")
-
+                if row.Low <= limit:
+                    selldates.append(index)
+                    sellprices.append(limit)
+                    in_position = False
+                    buy_pos = False
+                    is_hit_buy_pos = True
+                    exit_types.append("Limit price Hit due to uncertain trend")
+            if is_hit_buy_pos:
+                pnl = sellprices[-1] - buyprices[-1]
+                pnl *= position_sizes[-1]
+                profit_or_loss.append(pnl)
+                current_balance.append(current_balance[-2] + pnl)
+                balance_in_use = 0
     # ---------------------------------------------short position close check------------------------------
         elif in_position and sell_pos:
             tsl = row.tsl_short*(1+tsl_offset_short)
@@ -958,6 +980,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, 
                 buyprices.append(row.High)
                 in_position = False
                 sell_pos = False
+                is_hit_sell_pos = True
                 exit_types.append("SL Hit")
                 
             elif (row.Low <= tp) and (tp_perc_short != 0):
@@ -965,27 +988,38 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, 
                 buyprices.append(tp)
                 in_position = False
                 buy_pos = False
+                is_hit_sell_pos = True
                 exit_types.append("TP Hit")
             elif (row.pi_bottom) and (pi_exit):
                 buydates.append(index)
                 buyprices.append(row.Low)
                 in_position = False
                 buy_pos = False
+                is_hit_sell_pos = True
                 exit_types.append("Pi Cycle")
             elif row.short_Exit > 0:
                 limit = row.short_Exit
-            elif row.High >= limit:
-                buydates.append(index)
-                buyprices.append(limit)
-                in_position = False
-                buy_pos = False
-                exit_types.append("Limit price Hit due to uncertain trend")
-                
-    #         print(limit, in_position)
-                
+                if row.High >= limit:
+                    buydates.append(index)
+                    buyprices.append(limit)
+                    in_position = False
+                    buy_pos = False
+                    is_hit_sell_pos = True
+                    exit_types.append("Limit price Hit due to uncertain trend")
+            if is_hit_sell_pos:
+                pnl = sellprices[-1] - buyprices[-1]
+                pnl *= position_sizes[-1]
+                profit_or_loss.append(pnl)
+                current_balance.append(current_balance[-2] + pnl)
+                balance_in_use = 0
+            
+            # print(limit, in_position)
     # ======================================================================================================              
                 
     # ---------------------------------------------long position entry check------------------------------
+        position_size = None
+        buyprice = 0
+        sellprice = 0  
         if not in_position:
             if direction in ("Both", "Long") and row.long_Signal:
                 buyprice = row.long_entry
@@ -993,22 +1027,42 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, 
                 buyprices.append(buyprice)
                 in_position = True
                 buy_pos = True
+                is_hit_buy_pos = False
                 tp = buyprice * (1 + tp_perc_long)
                 limit = np.nan
                 init_sl = row.tsl_long*(1-init_sl_offset_long)
                 tsl_offset_long = tsl_offset_long_pct if tsl_offset_long_en == True else 0
-                
+                position_size = calculate_position_size(method_type, price_type, value, init_sl, ticker, exchange, 
+                                                        backtest=True, 
+                                                        current_balance=current_balance[-1],  # Your current balance during backtest
+                                                        entry_price=buyprice
+                                                        )
+                position_sizes.append(position_size)
+                # Calculate the amount in use based on the position size
+                balance_in_use = position_size * buyprice
+                current_balance.append(current_balance[-1] - balance_in_use)  # Deduct the amount in use
             elif direction in ("Both", "Short") and row.short_Signal:
                 sellprice = row.short_entry
                 selldates.append(index)
                 sellprices.append(sellprice)
                 in_position = True
                 sell_pos = True
+                is_hit_sell_pos = False
                 tp = sellprice / (1 + tp_perc_short)
                 limit = np.nan
                 init_sl = row.tsl_short*(1+init_sl_offset_short)
                 tsl_offset_short = tsl_offset_short_pct if tsl_offset_short_en == True else 0
+                position_size = calculate_position_size(method_type, price_type, value, init_sl, ticker, exchange, 
+                                                        backtest=True, 
+                                                        current_balance=current_balance[-1],  # Your current balance during backtest
+                                                        entry_price=sellprice
+                                                        )
+                position_sizes.append(position_size)
+                # Calculate the amount in use based on the position size
+                balance_in_use = position_size * sellprice
+                current_balance.append(current_balance[-1] - balance_in_use)  # Deduct the amount in use
                 
+            
     if len(buydates) == 0:
         print(f"No trades were made for {ticker}.")
     else:
@@ -1028,7 +1082,7 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, 
         results_df = pd.concat([results_df, pd.DataFrame({'ticker': f'{ticker}', 'returns': [returns], 'winrate': [winrate], 'trades': [ct], 'buy&hold_ret%': [buy_hold_ret]})])
         st.subheader('Backtest Results')
         st.write(f'{ticker}, winrate={winrate}%, returns={round(returns, 2)}%, no. of trades = {ct}, buy&hold_ret = {round(buy_hold_ret, 2)}%')
-
+        print('CURRENT BALANCE:', current_balance)
     # Return the trade data along with other results
     return {
         'buydates': buydates,
@@ -1036,7 +1090,10 @@ def backtest(df, ticker, direction="Both", commission=0.04/100, tp_perc_long=0, 
         'selldates': selldates,
         'sellprices': sellprices,
         'profits': profits,
-        'Exit Type' : exit_types
+        'Exit Type' : exit_types,
+        'Position Size': position_sizes,
+        'pnl': profit_or_loss,
+        'current_balance': current_balance,
         # Other results...
     }, results_df
 
@@ -1049,8 +1106,14 @@ def displayTrades(direction="Both", **kwargs):
     sellprices = kwargs['sellprices']
     profits = kwargs['profits']
     exit = kwargs['Exit Type']
+    position_sizes = kwargs['Position Size']
+    profit_or_loss = kwargs['pnl']
+    current_balance = kwargs['current_balance']
 
     ct = min(len(buydates), len(selldates))
+
+    # Assuming current_balance is your list of balances
+    exit_current_balances = current_balance[2::2]
     
     # Create a DataFrame to store the trades
     dfr = pd.DataFrame()
@@ -1061,6 +1124,9 @@ def displayTrades(direction="Both", **kwargs):
     dfr['profits'] = (profits[:ct])
     dfr['commulative_returns'] = ((pd.Series(profits) + 1).cumprod())
     dfr['Exit Type'] = exit[:ct]
+    dfr['Position Size'] = position_sizes[:-1]
+    dfr['Current Balance'] = exit_current_balances  # Add current_balance for each trade
+    dfr['Profit/Loss'] = profit_or_loss
     
     # Add a column to indicate the trade side
     dfr['tradeSide'] = np.where(dfr['buydates'] < dfr['selldates'], 'Long', 'Short')
@@ -1422,11 +1488,11 @@ def calculate_position_size(
 ):
     # Get the current ticker for the symbol
     # ticker = exchange.fetch_ticker(symbol)
-    entry_price = entry_price #if backtest else ticker['last']  # Use provided entry_price during backtest
-    sym_quote = symbol[-4:]
-    total_bal = current_balance #if backtest else exchange.fetch_balance()['total'][sym_quote]  # Use provided total_bal during backtest
-    print('Entry Price: ', entry_price)
-    print('Total Balance: ', total_bal)
+    entry_price = entry_price if backtest else ticker['last']  # Use provided entry_price during backtest
+    sym_quote = symbol[-3:]
+    total_bal = current_balance if backtest else exchange.fetch_balance()['total'][sym_quote]  # Use provided total_bal during backtest
+    # print('Entry Price: ', entry_price)
+    # print('Total Balance: ', total_bal)
     print('Symbol: ', symbol)
     print('Qoote for Symbol is: ', sym_quote)
     # Calculate position size
@@ -1437,10 +1503,7 @@ def calculate_position_size(
         elif price_type == 'Base':
             qty_ = value
         elif price_type == 'Percentage':
-            if backtest:
-                qty_ = (total_bal * (value * 0.01)) / entry_price
-            else:    
-                qty_ = (exchange.fetch_balance()['total'][sym_quote] * (value * 0.01)) / entry_price
+            qty_ = (total_bal * (value * 0.01)) / entry_price
     elif method_type == 'Dynamic':
         if price_type == 'Quote':
             qty_quote = (entry_price / ((abs(entry_price - sl_price)) / value))

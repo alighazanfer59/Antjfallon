@@ -71,7 +71,7 @@ fut_tickers = ['SANDUSDT', 'DGBUSDT', 'EGLDUSDT', 'BTCUSDT', 'GALAUSDT', 'TUSDT'
 #     st.session_state.tsl_offset_pct_short = 0.1
 #     st.session_state.exit_limit_short_en = True
 #     st.session_state.exit_perc_short_input = 80.0
-
+initial_capital = 10000
 # Constants for position size types and price types
 pos_size_types = ['Fixed', 'Dynamic']
 pos_size_price = ['Quote', 'Base', 'Percentage']
@@ -220,7 +220,7 @@ with st.sidebar:
     # Set the mode_choice in session state
     st.session_state.mode_choice = mode_choice
     # Call check_authentication_and_display when mode_choice changes
-    check_authentication_and_display(st.session_state.mode_choice)
+    exchange = check_authentication_and_display(st.session_state.mode_choice)
 
     # Set sandbox_mode based on mode_choice and update it in kraken_config.py
     sandbox_mode = (mode_choice == "Sandbox/Demo")
@@ -376,9 +376,11 @@ if calculate_button:
     st.session_state.dfs = dfs
     # st.write(dfs)
     # tp_perc = 0 if tp_exit == False else tp_value
-    results_data, result_df = backtest(dfs, sel_ticker, direction=direction, commission=0.04/100, tp_perc_long=tp_perc_long, tp_perc_short=tp_perc_short, pi_exit = pi_exit, 
-                                       tsl_offset_long_en=tsl_offset_long_en, tsl_offset_short_en=tsl_offset_short_en, tsl_offset_long_pct=tsl_offset_long, 
-                                       tsl_offset_short_pct=tsl_offset_short, init_sl_offset_long=init_sl_offset_long, init_sl_offset_short=init_sl_offset_short)
+    results_data, result_df = backtest(exchange, dfs, sel_ticker, direction, tp_perc_long=tp_perc_long, tp_perc_short=tp_perc_short, 
+                                   pi_exit = pi_exit, tsl_offset_long_en=tsl_offset_long_en, tsl_offset_short_en=tsl_offset_short_en, 
+                                   tsl_offset_long_pct=tsl_offset_long, tsl_offset_short_pct=tsl_offset_short, init_sl_offset_long=init_sl_offset_long, 
+                                   init_sl_offset_short=init_sl_offset_short, initial_capital=initial_capital, method_type=method_type, price_type=price_type,value=value,
+                                   )
     st.session_state.result_df = result_df
     # st.write(results_data)
     dfr = displayTrades(direction, **results_data)
