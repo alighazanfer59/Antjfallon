@@ -1336,12 +1336,19 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=250, side="long"
     }
 
     plot_labels_high_low(df, label_params, fig, side)
+    
+    entry_dates = {"Long": [], "Short": []}
+
+    for index, row in dfr.iterrows():
+        if row["tradeSide"] == "Long":
+            entry_dates["Long"].append(row['buydates'])
+        else:
+            entry_dates["Short"].append(row['selldates'])
 
     # Plot the Long signals as green arrows
-    long_signals = df[df['long_Signal']]
     fig.add_trace(go.Scatter(
-        x=long_signals.index,
-        y=df[sw_high_price][long_signals.index],
+        x=entry_dates["Long"],
+        y=df[sw_high_price].loc[entry_dates["Long"]],
         mode='markers',
         marker=dict(
             symbol='arrow-bar-right',
@@ -1352,10 +1359,9 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=250, side="long"
     ))
 
     # Plot the Short signals as red arrows
-    short_signals = df[df['short_Signal']]
     fig.add_trace(go.Scatter(
-        x=short_signals.index,
-        y=df[sw_low_price][short_signals.index],
+        x=entry_dates["Short"],
+        y=df[sw_low_price].loc[entry_dates["Short"]],
         mode='markers',
         marker=dict(
             symbol='arrow-bar-right',
@@ -1364,7 +1370,7 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=250, side="long"
         ),
         name='Short Signals',
     ))
-
+    
     # Plot the trailing stop loss levels for each trade
     for _, row in dfr.iterrows():
         high = df.loc[row.iloc[0], 'High']
@@ -1493,8 +1499,8 @@ def calculate_position_size(
     total_bal = current_balance if backtest else exchange.fetch_balance()['total'][sym_quote]  # Use provided total_bal during backtest
     # print('Entry Price: ', entry_price)
     # print('Total Balance: ', total_bal)
-    print('Symbol: ', symbol)
-    print('Qoote for Symbol is: ', sym_quote)
+    # print('Symbol: ', symbol)
+    # print('Qoote for Symbol is: ', sym_quote)
     # Calculate position size
     
     if method_type == 'Fixed':
@@ -1517,13 +1523,13 @@ def calculate_position_size(
     qty = round(qty_, 3)
     # Calculate money needed
     money_needed = qty * entry_price
-    print(f"Money ${money_needed} is needed to buy qty : {qty}")
+    # print(f"Money ${money_needed} is needed to buy qty : {qty}")
 
     # Check if position size exceeds available equity and adjust if needed
     if money_needed > total_bal:
         qty_ = total_bal / entry_price
         qty = round(qty_, 3)
-        print(f"Money needed to buy quantity Exceeded Total Balance, So Adjusting Qty : {qty}")
+        # print(f"Money needed to buy quantity Exceeded Total Balance, So Adjusting Qty : {qty}")
     
     return qty
 
