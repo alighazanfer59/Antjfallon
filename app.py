@@ -133,10 +133,10 @@ with st.sidebar:
     }
 
     # Create a selectbox for the user to choose the side
-    selected_option = st.selectbox("Select showSide to Plot Chart:", list(side_mapping.keys()))
+    selected_option = st.selectbox("Show Swing", list(side_mapping.keys()))
     # Get the corresponding value based on the selected option
     showSide = side_mapping[selected_option]
-    st.write("showSide Selected for Chart: ", showSide)
+    # st.write("showSide Selected for Chart: ", showSide)
     
     # Create the centered category label
     st.markdown(category_label(setting_label_long))
@@ -295,7 +295,7 @@ if st.session_state.show_log:
 
 # Input Parameters
 sel_ticker = st.selectbox("Select Ticker Symbol:", fut_tickers, index=fut_tickers.index("BTCUSDT"))
-st.write(f"Selected Ticker: {sel_ticker}")
+# st.write(f"Selected Ticker: {sel_ticker}")
 
 # You can use a date input widget for the start date
 start_date_input = str(st.date_input("Select Start Date:", datetime(2019, 9, 8)))

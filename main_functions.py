@@ -1098,7 +1098,7 @@ def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_per
     }, results_df
 
 def displayTrades(direction="Both", **kwargs):
-    st.write('Direction: ', direction)
+    # st.write('Direction: ', direction)
     # Access the trade data and other results from kwargs
     buydates = kwargs['buydates']
     buyprices = kwargs['buyprices']
@@ -1348,7 +1348,7 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=250, side="long"
     # Plot the Long signals as green arrows
     fig.add_trace(go.Scatter(
         x=entry_dates["Long"],
-        y=df[sw_high_price].loc[entry_dates["Long"]],
+        y=df['long_entry'].loc[entry_dates["Long"]],
         mode='markers',
         marker=dict(
             symbol='arrow-bar-right',
@@ -1361,7 +1361,7 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=250, side="long"
     # Plot the Short signals as red arrows
     fig.add_trace(go.Scatter(
         x=entry_dates["Short"],
-        y=df[sw_low_price].loc[entry_dates["Short"]],
+        y=df['short_entry'].loc[entry_dates["Short"]],
         mode='markers',
         marker=dict(
             symbol='arrow-bar-right',
@@ -1375,6 +1375,11 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=250, side="long"
     for _, row in dfr.iterrows():
         high = df.loc[row.iloc[0], 'High']
         low = df.loc[row.iloc[0], 'Low']
+        long_entry = df.loc[row.iloc[0], 'long_entry']
+        short_entry = df.loc[row.iloc[0], 'short_entry']
+        long_exit = df.loc[row.iloc[0], 'long_Exit']
+        short_exit = df.loc[row.iloc[0], 'short_Exit']
+        
         if row['tradeSide'] == 'Long':
             tsl = df.loc[row.iloc[0], 'tsl_long']  # Stop loss for Long position from df
             name = 'Long Trailing Stop Loss'
@@ -1412,10 +1417,10 @@ def plot_advanced_gann_swing_chart(df, dfr, visible_data_points=250, side="long"
             price_range = high - low  # Assuming high and low are defined
             if row['tradeSide'] == 'Long':
                 y_percentage_offset_entry = data['y_percentage_offset']
-                yy_entry = [high + y_percentage_offset_entry * price_range, tsl - 100]
+                yy_entry = [long_entry + 50, tsl]
             else:  # Short
                 y_percentage_offset_entry = data['y_percentage_offset']
-                yy_entry = [low - y_percentage_offset_entry * price_range, tsl - 100]
+                yy_entry = [short_entry, tsl]
 
             # Adjust the vertical offset for the EXIT similarly
             y_percentage_offset_exit = data['y_percentage_offset']
@@ -1498,6 +1503,7 @@ def calculate_position_size(
     sym_quote = symbol[-3:]
     total_bal = current_balance if backtest else exchange.fetch_balance()['total'][sym_quote]  # Use provided total_bal during backtest
     # print('Entry Price: ', entry_price)
+    # print('SL Price: ', sl_price)
     # print('Total Balance: ', total_bal)
     # print('Symbol: ', symbol)
     # print('Qoote for Symbol is: ', sym_quote)
@@ -1521,6 +1527,7 @@ def calculate_position_size(
             qty_ = qty_quote / entry_price
 
     qty = round(qty_, 3)
+    # print('Quantity Calculated: ', qty)
     # Calculate money needed
     money_needed = qty * entry_price
     # print(f"Money ${money_needed} is needed to buy qty : {qty}")
@@ -1529,8 +1536,8 @@ def calculate_position_size(
     if money_needed > total_bal:
         qty_ = total_bal / entry_price
         qty = round(qty_, 3)
-        # print(f"Money needed to buy quantity Exceeded Total Balance, So Adjusting Qty : {qty}")
-    
+    #     print(f"Money needed to buy quantity Exceeded Total Balance, So Adjusting Qty : {qty}")
+    # print('--------------------------------------------------------------------------\n')
     return qty
 
 # Function to generate a centered category label
