@@ -907,7 +907,7 @@ def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
     
     return df
 
-def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_perc_long=0, tp_perc_short=0, pi_exit=True, 
+def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_perc_long=0, tp_perc_short=0, pi_exit_long=True, pi_exit_short=False, 
              tsl_offset_long_en=True, tsl_offset_short_en=True, tsl_offset_long_pct=0.1/100, tsl_offset_short_pct=0.1/100, 
              init_sl_offset_long=0.1/100, init_sl_offset_short=0.1/100, initial_capital=10000, method_type='Fixed', price_type='Percentage', value=20):
     
@@ -949,7 +949,7 @@ def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_per
                 buy_pos = False
                 is_hit_buy_pos = True
                 exit_types.append("TP Hit")
-            elif (row.pi_top) and (pi_exit):
+            elif (row.pi_top) and (pi_exit_long):
                 selldates.append(index)
                 sellprices.append(row.High)
                 in_position = False
@@ -990,7 +990,7 @@ def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_per
                 buy_pos = False
                 is_hit_sell_pos = True
                 exit_types.append("TP Hit")
-            elif (row.pi_bottom) and (pi_exit):
+            elif (row.pi_bottom) and (pi_exit_short):
                 buydates.append(index)
                 buyprices.append(row.Low)
                 in_position = False
@@ -1082,7 +1082,6 @@ def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_per
         results_df = pd.concat([results_df, pd.DataFrame({'ticker': f'{ticker}', 'returns': [returns], 'winrate': [winrate], 'trades': [ct], 'buy&hold_ret%': [buy_hold_ret]})])
         st.subheader('Backtest Results')
         st.write(f'{ticker}, winrate={winrate}%, returns={round(returns, 2)}%, no. of trades = {ct}, buy&hold_ret = {round(buy_hold_ret, 2)}%')
-        print('CURRENT BALANCE:', current_balance)
     # Return the trade data along with other results
     return {
         'buydates': buydates,
@@ -1105,7 +1104,7 @@ def displayTrades(direction="Both", **kwargs):
     selldates = kwargs['selldates']
     sellprices = kwargs['sellprices']
     profits = kwargs['profits']
-    exit = kwargs['Exit Type']
+    exit_type = kwargs['Exit Type']
     position_sizes = kwargs['Position Size']
     profit_or_loss = kwargs['pnl']
     current_balance = kwargs['current_balance']
@@ -1123,15 +1122,26 @@ def displayTrades(direction="Both", **kwargs):
     dfr['sellprice'] = sellprices[:ct]
     dfr['profits'] = (profits[:ct])
     dfr['commulative_returns'] = ((pd.Series(profits) + 1).cumprod())
-    dfr['Exit Type'] = exit[:ct]
+    dfr['Exit Type'] = exit_type[:ct]
     dfr['Position Size'] = position_sizes[:-1]
     dfr['Current Balance'] = exit_current_balances  # Add current_balance for each trade
     dfr['Profit/Loss'] = profit_or_loss
     
     # Add a column to indicate the trade side
     dfr['tradeSide'] = np.where(dfr['buydates'] < dfr['selldates'], 'Long', 'Short')
+    dfr['Entry Date'] = np.where(dfr['tradeSide'] == 'Long', dfr['buydates'], dfr['selldates'])
+    dfr['Exit Date'] = np.where(dfr['tradeSide'] == 'Long', dfr['selldates'], dfr['buydates'])
+
+    dfr['Entry Price'] = np.where(dfr['tradeSide'] == 'Long', dfr['buyprice'], dfr['sellprice'])
+    dfr['Exit Price'] = np.where(dfr['tradeSide'] == 'Long', dfr['sellprice'], dfr['buyprice'])
     
-    return dfr
+    # Create a list of column names with the desired display order
+    display_order = ['Entry Date', 'Entry Price', 'Exit Date', 'Exit Price', 'profits', 'commulative_returns', 'Exit Type', 'Position Size', 'Current Balance', 'Profit/Loss', 'tradeSide']
+    
+    # Create a copy of the DataFrame with only the columns to be displayed
+    dfr_display = dfr[display_order].copy()
+
+    return dfr, dfr_display
 
 def get_variables(side, df):
     # Initialize a dictionary to store variable names and corresponding column names
@@ -1498,13 +1508,13 @@ def calculate_position_size(
     entry_price=None
 ):
     # Get the current ticker for the symbol
-    # ticker = exchange.fetch_ticker(symbol)
+    ticker = exchange.fetch_ticker(symbol)
     entry_price = entry_price if backtest else ticker['last']  # Use provided entry_price during backtest
     sym_quote = symbol[-3:]
     total_bal = current_balance if backtest else exchange.fetch_balance()['total'][sym_quote]  # Use provided total_bal during backtest
-    # print('Entry Price: ', entry_price)
-    # print('SL Price: ', sl_price)
-    # print('Total Balance: ', total_bal)
+    print('Entry Price: ', entry_price)
+    print('SL Price: ', sl_price)
+    print('Total Balance: ', total_bal)
     # print('Symbol: ', symbol)
     # print('Qoote for Symbol is: ', sym_quote)
     # Calculate position size
@@ -1527,17 +1537,17 @@ def calculate_position_size(
             qty_ = qty_quote / entry_price
 
     qty = round(qty_, 3)
-    # print('Quantity Calculated: ', qty)
+    print('Quantity Calculated: ', qty)
     # Calculate money needed
     money_needed = qty * entry_price
-    # print(f"Money ${money_needed} is needed to buy qty : {qty}")
+    print(f"Money ${money_needed} is needed to buy qty : {qty}")
 
     # Check if position size exceeds available equity and adjust if needed
     if money_needed > total_bal:
         qty_ = total_bal / entry_price
         qty = round(qty_, 3)
-    #     print(f"Money needed to buy quantity Exceeded Total Balance, So Adjusting Qty : {qty}")
-    # print('--------------------------------------------------------------------------\n')
+        print(f"Money needed to buy quantity Exceeded Total Balance, So Adjusting Qty : {qty}")
+    print('--------------------------------------------------------------------------\n')
     return qty
 
 # Function to generate a centered category label

@@ -159,6 +159,8 @@ with st.sidebar:
     exit_perc_long_input = st.number_input("Percentage For Limit Order Price Calculation", min_value=0.0, max_value=100.0, value=80.0, key='exit_perc_long_input')
     exit_perc_long = 0 if exit_limit_long_en == False else exit_perc_long_input*0.01
     
+    pi_exit_long = st.checkbox("Exit On Pi Cycle", True, key='pi_exit_lonng')
+    
     # Create the centered category label
     st.markdown(category_label(setting_label_short))
     
@@ -176,11 +178,11 @@ with st.sidebar:
     tsl_offset_short = tsl_offset_pct_short * 0.01
     
     # Exit Percentage
-    exit_limit_short_en = st.checkbox("Check For Signs Of Trend Reversal", True, key='exit_short')
+    exit_limit_short_en = st.checkbox("Check For Signs Of Trend Reversal", False, key='exit_short')
     exit_perc_short_input = st.number_input("Percentage For Limit Order Price Calculation", min_value=0.0, max_value=100.0, value=80.0, key='exit_perc_short_input')
     exit_perc_short = 0 if exit_limit_short_en == False else exit_perc_short_input*0.01
     
-    pi_exit = st.checkbox("Exit On Pi Cycle", True, key='pi_exit')
+    pi_exit_short = st.checkbox("Exit On Pi Cycle", False, key='pi_exit_short')
     
     # Reset button to set all input values to their defaults
     # if st.button("Reset to Defaults"):
@@ -326,21 +328,16 @@ final_params_dict = {
     "max_sw_cnt_l": max_sw_cnt_l,
     "max_sw_cnt_s": max_sw_cnt_s,
     "init_sl_offset_long": init_sl_offset_long,
-    "init_sl_offset_short": init_sl_offset_short,
-    "tp_exit_long": tp_exit_long,
     "tp_perc_long": tp_perc_long,
-    "tsl_offset_long_en": tsl_offset_long_en,
     "tsl_offset_long": tsl_offset_long,
-    "exit_limit_long_en": exit_limit_long_en,
     "exit_perc_long": exit_perc_long,
-    "tp_exit_short": tp_exit_short,
+    "pi_exit_long": pi_exit_long,
+    "init_sl_offset_short": init_sl_offset_short,
     "tp_perc_short": tp_perc_short,
-    "tsl_offset_short_en": tsl_offset_short_en,
     "tsl_offset_short": tsl_offset_short,
-    "exit_limit_short_en": exit_limit_short_en,
     "exit_perc_short": exit_perc_short,
+    "pi_exit_short": pi_exit_short,
     "direction": direction,  # Add the "direction" parameter to the dictionary
-    "pi_exit": pi_exit,
     "method_type": method_type,
     "price_type": price_type,
     "pos_size_value": value,
@@ -354,6 +351,8 @@ def initialize_session_state():
         st.session_state.df = None
     if 'dfr' not in st.session_state:
         st.session_state.dfr = None
+    if 'dfr_display' not in st.session_state:
+        st.session_state.dfr_display = None
     if 'result_df' not in st.session_state:
         st.session_state.result_df = None
     if 'fig' not in st.session_state:
@@ -377,16 +376,17 @@ if calculate_button:
     # st.write(dfs)
     # tp_perc = 0 if tp_exit == False else tp_value
     results_data, result_df = backtest(exchange, dfs, sel_ticker, direction, tp_perc_long=tp_perc_long, tp_perc_short=tp_perc_short, 
-                                   pi_exit = pi_exit, tsl_offset_long_en=tsl_offset_long_en, tsl_offset_short_en=tsl_offset_short_en, 
+                                   pi_exit_long=pi_exit_long, pi_exit_short=pi_exit_short, tsl_offset_long_en=tsl_offset_long_en, tsl_offset_short_en=tsl_offset_short_en, 
                                    tsl_offset_long_pct=tsl_offset_long, tsl_offset_short_pct=tsl_offset_short, init_sl_offset_long=init_sl_offset_long, 
                                    init_sl_offset_short=init_sl_offset_short, initial_capital=initial_capital, method_type=method_type, price_type=price_type,value=value,
                                    )
     st.session_state.result_df = result_df
     # st.write(results_data)
-    dfr = displayTrades(direction, **results_data)
+    dfr, dfr_display = displayTrades(direction, **results_data)
     st.session_state.dfr = dfr
+    st.session_state.dfr_display = dfr_display
     st.subheader('Trades Data')
-    st.write(dfr)
+    st.write(dfr_display)
     # Plot the chart
     # fig = plot_advanced_gann_swing_chart(dfs, dfr)
     # st.session_state.fig = fig
@@ -397,7 +397,7 @@ if st.button("Open Fullscreen Chart"):
     # st.write('showSide Selected: ', showSide)
     st.write(st.session_state.result_df)
     st.subheader('Trades Data')
-    st.write(st.session_state.dfr)
+    st.write(st.session_state.dfr_display)
     with st.expander("Fullscreen Chart", expanded=True):
         # Create a Plotly Go figure with your chart data
         try:
@@ -422,9 +422,9 @@ if st.button("Copy Optimized Parameters to Bot"):
     if st.session_state.result_df is not None:
         st.subheader("Backtest Results:")
         st.session_state.result_df
-    if st.session_state.dfr is not None:
+    if st.session_state.dfr_display is not None:
         st.subheader("Trades History")
-        st.write(st.session_state.dfr)
+        st.write(st.session_state.dfr_display)
     if st.session_state.fig is not None:
         st.subheader("Plot Chart:")
         st.plotly_chart(st.session_state.fig, use_container_width=True)

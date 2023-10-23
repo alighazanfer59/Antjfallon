@@ -6,6 +6,9 @@ import json
 import os
 import warnings
 
+# Record the start time
+start_time = time.time()
+
 # import importlib
 import kraken_config
 
@@ -147,10 +150,10 @@ print("LOng Position", buy_pos)
 print("Short Position", sell_pos)
 
 
-tp_perc_long = 0 if tp_exit_long == False else tp_value_long*0.01
-print("TP perc Long: ", tp_perc_long)
-tp_perc_short = 0 if tp_exit_short == False else tp_value_short*0.01
-print("TP perc Short: ", tp_perc_short)
+# tp_perc_long = 0 if tp_exit_long == False else tp_value_long*0.01
+# print("TP perc Long: ", tp_perc_long)
+# tp_perc_short = 0 if tp_exit_short == False else tp_value_short*0.01
+# print("TP perc Short: ", tp_perc_short)
 
 try:
     try:
@@ -171,7 +174,7 @@ try:
             df, max_sw_cnt=max_sw_cnt_l, exit_perc=exit_perc_long, side="long"
         )
         dfsh = calculate_gann_signals(
-            df, max_sw_cnt=max_sw_cnt_s, exit_perc=exit_perc_long, side="short"
+            df, max_sw_cnt=max_sw_cnt_s, exit_perc=exit_perc_short, side="short"
         )
         unique_columns = dfsh.columns.difference(dfl.columns)
         df = pd.concat([dfl, dfsh[unique_columns]], axis=1)
@@ -219,7 +222,7 @@ try:
                         sellprice=info["price"],
                         filename=tradesfile,
                     )
-                elif row['pi_top'] and pi_exit:
+                elif row['pi_top'] and pi_exit_long:
                     close_position(symbol, amount, "buy", "Long", tp)
                     in_position = False
                     buy_pos = False
@@ -280,7 +283,7 @@ try:
                         sellprice=read_tradefile(tradesfile, "short"),
                         filename=tradesfile,
                     )
-                elif row['pi_bottom'] and pi_exit:
+                elif row['pi_bottom'] and pi_exit_short:
                     close_position(symbol, amount, "sell", "Short", tp)
                     in_position = False
                     sell_pos = False
@@ -321,11 +324,13 @@ try:
             print("Position Size Value: ", pos_size_value)
 
             if row["long_Signal"]:
+                
                 print("Got Long Position Signal, Taking Long Position")
                 print("SL Long :", sl_long)
+                init_sl_long = row.tsl_long*(1+init_sl_offset_long)
                 # Calculate position size
                 qty = calculate_position_size(
-                    method_type, price_type, pos_size_value, sl_long, symbol, exchange
+                    method_type, price_type, pos_size_value, init_sl_long, symbol, exchange
                 )
 
                 print(f"Position Size: {qty}")
@@ -340,9 +345,10 @@ try:
             elif row["short_Signal"]:
                 print("Get Short Signal, Taking Short Position")
                 print("SL Long :", sl_short)
+                init_sl_short = row.tsl_short*(1+init_sl_offset_short)
                 # Calculate position size
                 qty = calculate_position_size(
-                    method_type, price_type, pos_size_value, sl_short, symbol, exchange
+                    method_type, price_type, pos_size_value, init_sl_short, symbol, exchange
                 )
 
                 print(f"Position Size: {qty}")
@@ -365,6 +371,14 @@ state = {"in_position": in_position, "buy_pos": buy_pos, "sell_pos": sell_pos}
 
 with open("flag_status.json", "w") as state_file:
     json.dump(state, state_file)
+
+# Record the end time
+end_time = time.time()
+
+# Calculate the execution time
+execution_time = end_time - start_time
+
+print(f"Execution Time: {execution_time} seconds")
 print(
     "========================================== End of Code ============================================"
 )
