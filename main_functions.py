@@ -1021,7 +1021,7 @@ def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_per
         buyprice = 0
         sellprice = 0  
         if not in_position:
-            if direction in ("Both", "Long") and row.long_Signal:
+            if direction in ("Both", "Long") and row.long_Signal and not row.pi_top:
                 buyprice = row.long_entry
                 buydates.append(index)
                 buyprices.append(buyprice)
@@ -1041,7 +1041,7 @@ def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_per
                 # Calculate the amount in use based on the position size
                 balance_in_use = position_size * buyprice
                 current_balance.append(current_balance[-1] - balance_in_use)  # Deduct the amount in use
-            elif direction in ("Both", "Short") and row.short_Signal:
+            elif direction in ("Both", "Short") and row.short_Signal and not row.pi_bottom:
                 sellprice = row.short_entry
                 selldates.append(index)
                 sellprices.append(sellprice)
