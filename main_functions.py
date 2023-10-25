@@ -951,7 +951,7 @@ def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_per
                 exit_types.append("TP Hit")
             elif (row.pi_top) and (pi_exit_long):
                 selldates.append(index)
-                sellprices.append(row.High)
+                sellprices.append(row.Close)
                 in_position = False
                 buy_pos = False
                 is_hit_buy_pos = True
@@ -992,7 +992,7 @@ def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_per
                 exit_types.append("TP Hit")
             elif (row.pi_bottom) and (pi_exit_short):
                 buydates.append(index)
-                buyprices.append(row.Low)
+                buyprices.append(row.Close)
                 in_position = False
                 buy_pos = False
                 is_hit_sell_pos = True
