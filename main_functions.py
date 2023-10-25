@@ -1021,7 +1021,7 @@ def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_per
         buyprice = 0
         sellprice = 0  
         if not in_position:
-            if direction in ("Both", "Long") and row.long_Signal:
+            if direction in ("Both", "Long") and row.long_Signal and not row.pi_top:
                 buyprice = row.long_entry
                 buydates.append(index)
                 buyprices.append(buyprice)
@@ -1041,7 +1041,7 @@ def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_per
                 # Calculate the amount in use based on the position size
                 balance_in_use = position_size * buyprice
                 current_balance.append(current_balance[-1] - balance_in_use)  # Deduct the amount in use
-            elif direction in ("Both", "Short") and row.short_Signal:
+            elif direction in ("Both", "Short") and row.short_Signal and not row.pi_bottom:
                 sellprice = row.short_entry
                 selldates.append(index)
                 sellprices.append(sellprice)
@@ -1110,7 +1110,7 @@ def displayTrades(direction="Both", **kwargs):
     current_balance = kwargs['current_balance']
 
     ct = min(len(buydates), len(selldates))
-
+    
     # Assuming current_balance is your list of balances
     exit_current_balances = current_balance[2::2]
     
@@ -1123,7 +1123,7 @@ def displayTrades(direction="Both", **kwargs):
     dfr['profits'] = (profits[:ct])
     dfr['commulative_returns'] = ((pd.Series(profits) + 1).cumprod())
     dfr['Exit Type'] = exit_type[:ct]
-    dfr['Position Size'] = position_sizes[:-1]
+    dfr['Position Size'] = position_sizes[:ct]
     dfr['Current Balance'] = exit_current_balances  # Add current_balance for each trade
     dfr['Profit/Loss'] = profit_or_loss
     
@@ -1506,9 +1506,11 @@ def calculate_position_size(
     method_type, price_type, value, sl_price, 
     symbol, exchange, backtest=False, current_balance=None, 
     entry_price=None
-):
-    # Get the current ticker for the symbol
-    ticker = exchange.fetch_ticker(symbol)
+    ):
+    if not backtest:
+        # Get the current ticker for the symbol
+        ticker = exchange.fetch_ticker(symbol)
+    
     entry_price = entry_price if backtest else ticker['last']  # Use provided entry_price during backtest
     sym_quote = symbol[-3:]
     total_bal = current_balance if backtest else exchange.fetch_balance()['total'][sym_quote]  # Use provided total_bal during backtest

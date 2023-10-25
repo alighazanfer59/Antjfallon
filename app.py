@@ -7,6 +7,7 @@ import main_functions
 import kraken_config
 import plotly.graph_objects as go
 import importlib
+from io import BytesIO
 import subprocess
 import warnings
 
@@ -124,7 +125,7 @@ with st.sidebar:
 
     # Input Parameter for max_sw_cnt
     max_sw_cnt_l = st.number_input("Long Swing Count", min_value=1, value=3)
-    max_sw_cnt_s = st.number_input("Short Swing Count", min_value=1, value=3)
+    max_sw_cnt_s = st.number_input("Short Swing Count", min_value=1, value=4)
 
     # Create a dictionary to map options to values
     side_mapping = {
@@ -359,9 +360,18 @@ def initialize_session_state():
         st.session_state.fig = None
     if 'optimized_params_dict' not in st.session_state:
         st.session_state.optimized_params_dict = None
-    
+
+# Function to generate Excel file as BytesIO object
+def download_excel(data):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        data.to_excel(writer, sheet_name='Sheet1', index=False)
+    output.seek(0)
+    return output
+
 # Create a "Calculate" button
 calculate_button = st.button("Backtest and Display Trades")
+initialize_session_state()
 
 if calculate_button:
     df = getdata(sel_ticker, mapped_timeframe, day)
@@ -386,7 +396,8 @@ if calculate_button:
     st.session_state.dfr = dfr
     st.session_state.dfr_display = dfr_display
     st.subheader('Trades Data')
-    st.write(dfr_display)
+    st.dataframe(dfr_display)
+    
     # Plot the chart
     # fig = plot_advanced_gann_swing_chart(dfs, dfr)
     # st.session_state.fig = fig
@@ -397,7 +408,7 @@ if st.button("Open Fullscreen Chart"):
     # st.write('showSide Selected: ', showSide)
     st.write(st.session_state.result_df)
     st.subheader('Trades Data')
-    st.write(st.session_state.dfr_display)
+    st.dataframe(st.session_state.dfr_display)
     with st.expander("Fullscreen Chart", expanded=True):
         # Create a Plotly Go figure with your chart data
         try:
@@ -410,12 +421,7 @@ if st.button("Open Fullscreen Chart"):
 # Check if 'fig' exists in session state and initialize it if not
 if 'fig' not in st.session_state:
     st.session_state.fig = None
-    # # Plot the chart
-    # fig = plot_advanced_gann_swing_chart(dfs, dfr)
-    # st.session_state.fig = fig
-    # # Display the chart in Streamlit
-    # st.plotly_chart(fig)
-
+    
 # Create a button to copy the parameters to a JSON file
 if st.button("Copy Optimized Parameters to Bot"):
     # Display the stored data
@@ -424,7 +430,7 @@ if st.button("Copy Optimized Parameters to Bot"):
         st.session_state.result_df
     if st.session_state.dfr_display is not None:
         st.subheader("Trades History")
-        st.write(st.session_state.dfr_display)
+        st.dataframe(st.session_state.dfr_display)
     if st.session_state.fig is not None:
         st.subheader("Plot Chart:")
         st.plotly_chart(st.session_state.fig, use_container_width=True)
@@ -438,6 +444,18 @@ if st.button("Copy Optimized Parameters to Bot"):
     st.success("Optimized parameters copied to the Bot Successfully!")
     st.write(final_params_dict)
 
+# if st.session_state.dfr_display is not None:
+#     # Add a download button to save the DataFrame as an Excel file
+#     excel_data = download_excel(st.session_state.dfr_display)
+#     if excel_data:
+#         if st.download_button(
+#             label="Download Excel File",
+#             data=excel_data,
+#             key="download-excel-button",
+#             file_name="output.xlsx",  # The default file name for the downloaded file
+#         ):
+#             st.success("Excel file saved successfully!")
+#     st.write("You can click the 'Download Excel File' button above to save the DataFrame as an Excel file.")
 # # Toggle button to open/close the log file
 # if st.session_state.show_log:
-#     open_log_file(main_display)
+#     open_log_file(main_display)   
