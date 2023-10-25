@@ -937,7 +937,7 @@ def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_per
             sl = max(init_sl, tsl)
             if (row.Low <= sl):
                 selldates.append(index)
-                sellprices.append(row.Low)
+                sellprices.append(sl)
                 in_position = False
                 buy_pos = False
                 is_hit_buy_pos = True
@@ -977,7 +977,7 @@ def backtest(exchange, df, ticker, direction='Both', commission=0.04/100, tp_per
             sl = min(init_sl, tsl)
             if (row.High >= sl):
                 buydates.append(index)
-                buyprices.append(row.High)
+                buyprices.append(sl)
                 in_position = False
                 sell_pos = False
                 is_hit_sell_pos = True
