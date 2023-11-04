@@ -892,7 +892,7 @@ def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
 
         df[f"{side}_Exit"] = np.where((df[f'sw_lows_{side}'] == "HL") & 
                             (df[f'sw_trend_{side}'].shift(2) == -1.0) &
-                            (df[f'sw_trend_{side}'] == 1.0) & (df[f'sw_trend_{side}'].shift(1) == 1.0)
+                            (df[f'sw_trend_{side}'] == 1.0) & (df[f'sw_trend_{side}'].shift(1) == 1.0) &
                             (df[f'trend_{side}'] == "UNCERTAIN"),  
                             (df[f'sw_high_price_{side}'] - (df[f'sw_high_price_{side}'] - df[f'sw_low_price_{side}'])*exit_perc), 
                                 np.nan)    
