@@ -767,7 +767,7 @@ def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
         if mask1[i] & (df[f'sw_trend_{side}'].iloc[i - 1] != df[f'sw_trend_{side}'].iloc[i]):
             # Calculate the maximum High and its index
             high_range = df.loc[
-                df.index[max(0, i - int(df[f'trend_cnt_{side}'][i]))]:df.index[i]]['High']
+                df.index[max(0, i - int(df[f'trend_cnt_{side}'][i]) + 1)]:df.index[i]]['High']
             max_high = high_range.max()
             max_high_index = high_range.idxmax()
 
@@ -777,7 +777,7 @@ def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
         elif mask2[i] & (df[f'sw_trend_{side}'].iloc[i - 1] != df[f'sw_trend_{side}'].iloc[i]):
             # Calculate the maximum High and its index
             low_range = df.loc[
-                df.index[max(0, i - int(df[f'trend_cnt_{side}'][i]))]:df.index[i]]['Low']
+                df.index[max(0, i - int(df[f'trend_cnt_{side}'][i]) + 1)]:df.index[i]]['Low']
             min_low = low_range.min()
             min_low_index = low_range.idxmin()
 
@@ -903,7 +903,7 @@ def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
                             False
                             )
     
-    st.write(df[-800:-400])
+    # st.write(df[-800:-400])
     
     return df
 
