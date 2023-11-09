@@ -673,7 +673,7 @@ def calculate_candle_type(df):
         )
     )
 
-def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
+def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = (80*0.01), side = "long"):
     # print(f'Exit percentage {side}: {exit_perc}')
     calculate_candle_type(df)
     
@@ -743,46 +743,86 @@ def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
     df.loc[mask2, f'sw_trend_{side}'] = 1
 
     # Forward fill the sw_trend column to carry forward the last value
-    df[f'sw_trend_{side}'].ffill(inplace=True)
+#     df[f'sw_trend_{side}'].ffill(inplace=True)
 
     trend_cnt = [0]
-
-    # Loop through the DataFrame index
-    for i in range(1, len(df)):
-        if df[f'sw_trend_{side}'].iloc[i - 1] == df[f'sw_trend_{side}'].iloc[i]:
-            trend_cnt.append(trend_cnt[i - 1] + 1)
-        else:
-            trend_cnt.append(1)
-    # Append a 0 at the beginning to match the length of the DataFrame
-    trend_cnt.insert(0, 0)
-
-    df[f'trend_cnt_{side}'] = trend_cnt[:-1]
 
     # Initialize sw_top column with False
     df[f'sw_top_{side}'] = False
     df[f'sw_bottom_{side}'] = False
 
+    prev_high = float('inf')
+    prev_low = 0
+
     # Calculate the maximum High value of past n candles when mask1 is true
     for i in range(len(df)):
-        if mask1[i] & (df[f'sw_trend_{side}'].iloc[i - 1] != df[f'sw_trend_{side}'].iloc[i]):
-            # Calculate the maximum High and its index
-            high_range = df.loc[
-                df.index[max(0, i - int(df[f'trend_cnt_{side}'][i]) + 1)]:df.index[i]]['High']
-            max_high = high_range.max()
-            max_high_index = high_range.idxmax()
+        
+        df[f'sw_trend_{side}'].iloc[:i+1] = df[f'sw_trend_{side}'].iloc[:i+1].ffill()
+        if i == 0:
+            trend_cnt.append(1)
+    #         print(i, "first candle ", trend_cnt[i])
+        elif df[f'sw_trend_{side}'].iloc[i - 1] == df[f'sw_trend_{side}'].iloc[i]:
+            trend_cnt.append((trend_cnt[-1]) + 1)
+    #         print(i, "trend continues ", trend_cnt[i], trend_cnt[i - 1], df.index[i])
+        else:
+            trend_cnt.append(1)
+    #         print(i, "trend reverses ", trend_cnt[i])
+        
+        if i <= len(df):
+            if mask1[i] & (df[f'sw_trend_{side}'].iloc[i - 1] != df[f'sw_trend_{side}'].iloc[i]):
+                # Calculate the maximum High and its index
+                high_range = df.loc[
+                    df.index[max(0, i - int(trend_cnt[i]))]:df.index[i - 1]]['High']
+                max_high = high_range.max()
+                if not high_range.empty:
+                    max_high_index = high_range.idxmax()
+                    prev_high = max_high
+                    # Mark the row where max_high occurs as True
+                    df.at[max_high_index, f'sw_top_{side}'] = True
+                else:
+                    pass
+                print(df.index[i], "logic 1")
 
-            # Mark the row where max_high occurs as True
-            df.at[max_high_index, f'sw_top_{side}'] = True
+            elif mask2[i] & (df[f'sw_trend_{side}'].iloc[i - 1] != df[f'sw_trend_{side}'].iloc[i]):
+                # Calculate the maximum High and its index
+                low_range = df.loc[
+                    df.index[max(0, i - int(trend_cnt[i]))]:df.index[i - 1]]['Low']
+                min_low = low_range.min()
+                if not high_range.empty:
+                    min_low_index = low_range.idxmin()
+                    prev_low = min_low
+                    # Mark the row where max_high occurs as True
+                    df.at[min_low_index, f'sw_bottom_{side}'] = True
+                else:
+                    pass
+                print(df.index[i], "logic 2")
 
-        elif mask2[i] & (df[f'sw_trend_{side}'].iloc[i - 1] != df[f'sw_trend_{side}'].iloc[i]):
-            # Calculate the maximum High and its index
-            low_range = df.loc[
-                df.index[max(0, i - int(df[f'trend_cnt_{side}'][i]) + 1)]:df.index[i]]['Low']
-            min_low = low_range.min()
-            min_low_index = low_range.idxmin()
+            elif (df['High'][i] > prev_high) & (df[f'sw_trend_{side}'].iloc[i] == -1):
+                low_range = df.loc[
+                    df.index[max(0, i - int(trend_cnt[i]))]:df.index[i]]['Low']
+                min_low = low_range.min()
+                min_low_index = low_range.idxmin()
+                prev_low = min_low
+                df.at[min_low_index, f'sw_bottom_{side}'] = True
+                df[f'sw_trend_{side}'].iloc[i] = 1
+                print(df.index[i], "logic 3")
 
-            # Mark the row where max_high occurs as True
-            df.at[min_low_index, f'sw_bottom_{side}'] = True
+            elif (df['Low'][i] < prev_low) & (df[f'sw_trend_{side}'].iloc[i] == 1):
+                high_range = df.loc[
+                    df.index[max(0, i - int(trend_cnt[i]))]:df.index[i]]['High']
+                max_high = high_range.max()
+                max_high_index = high_range.idxmax()
+                prev_high = max_high
+                # Mark the row where max_high occurs as True
+                df.at[max_high_index, f'sw_top_{side}'] = True
+                df[f'sw_trend_{side}'].iloc[i] = -1
+                print(df.index[i], "logic 4")
+            print(df.index[i], prev_high, prev_low, df[f'sw_trend_{side}'][i])
+
+# Append a 0 at the beginning to match the length of the DataFrame
+# trend_cnt.insert(0, 0)
+
+    df[f'trend_cnt_{side}'] = trend_cnt[:-1]
 
     df[f'sw_high_price_{side}'] = np.where(
         df[f'sw_top_{side}'] == True, df['High'], np.nan)
@@ -803,7 +843,7 @@ def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
 
     # Concatenate the DataFrames and select the desired columns
     df_swings = pd.concat([df_tops, df_bottoms], axis=1)
-
+#     print(df_swings)
     df_swings[f'trend_{side}'] = np.nan
     df_swings[f'trend_{side}'] = np.where(((df_swings[f'sw_highs_{side}'] == 'HH') & (df_swings[f'sw_lows_{side}'].shift(1) == 'HL')) |
                                   ((df_swings[f'sw_lows_{side}'] == 'HL') & (df_swings[f'sw_highs_{side}'].shift(1) == 'HH')),
@@ -865,7 +905,7 @@ def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
         
         df[f"{side}_Exit"] = np.where((df[f'sw_highs_{side}'] == "LH") & 
                             (df[f'sw_trend_{side}'].shift(2) == 1.0) &
-                            (df[f'sw_trend_{side}'] == -1.0) & (df[f'sw_trend_{side}'].shift(1) == -1.0) &
+                            (df[f'sw_trend_{side}'].shift(1) == -1.0) & (df[f'sw_trend_{side}'] == -1.0) &
                             (df[f'trend_{side}'] == "UNCERTAIN"),  
                             ((df[f'sw_high_price_{side}'] - df[f'sw_low_price_{side}'])*exit_perc + df[f'sw_low_price_{side}']), 
                                 np.nan)
@@ -892,7 +932,7 @@ def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
 
         df[f"{side}_Exit"] = np.where((df[f'sw_lows_{side}'] == "HL") & 
                             (df[f'sw_trend_{side}'].shift(2) == -1.0) &
-                            (df[f'sw_trend_{side}'] == 1.0) & (df[f'sw_trend_{side}'].shift(1) == 1.0) &
+                            (df[f'sw_trend_{side}'].shift(1) == 1.0) & (df[f'sw_trend_{side}'] == 1.0) &
                             (df[f'trend_{side}'] == "UNCERTAIN"),  
                             (df[f'sw_high_price_{side}'] - (df[f'sw_high_price_{side}'] - df[f'sw_low_price_{side}'])*exit_perc), 
                                 np.nan)    
@@ -902,8 +942,14 @@ def calculate_gann_signals(df, max_sw_cnt=3, exit_perc=(80*0.01), side="long"):
                             True, 
                             False
                             )
+#     for i in range(len(df)):
+#         if df[f'sw_trend_{side}'][i] == np.nan:
+#             df[f'sw_top_{side}'][i] = False
+#             df[f'sw_bottom_{side}'][i] = False
+#         else:
+#             pass
     
-    # st.write(df[-800:-400])
+#     st.write(df[300:500])
     
     return df
 
