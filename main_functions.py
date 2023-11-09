@@ -781,7 +781,7 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = (80*0.01), side = "lo
                     df.at[max_high_index, f'sw_top_{side}'] = True
                 else:
                     pass
-                print(df.index[i], "logic 1")
+                # print(df.index[i], "logic 1")
 
             elif mask2[i] & (df[f'sw_trend_{side}'].iloc[i - 1] != df[f'sw_trend_{side}'].iloc[i]):
                 # Calculate the maximum High and its index
@@ -795,7 +795,7 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = (80*0.01), side = "lo
                     df.at[min_low_index, f'sw_bottom_{side}'] = True
                 else:
                     pass
-                print(df.index[i], "logic 2")
+                # print(df.index[i], "logic 2")
 
             elif (df['High'][i] > prev_high) & (df[f'sw_trend_{side}'].iloc[i] == -1):
                 low_range = df.loc[
@@ -805,7 +805,7 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = (80*0.01), side = "lo
                 prev_low = min_low
                 df.at[min_low_index, f'sw_bottom_{side}'] = True
                 df[f'sw_trend_{side}'].iloc[i] = 1
-                print(df.index[i], "logic 3")
+                # print(df.index[i], "logic 3")
 
             elif (df['Low'][i] < prev_low) & (df[f'sw_trend_{side}'].iloc[i] == 1):
                 high_range = df.loc[
@@ -816,8 +816,8 @@ def calculate_gann_signals(df, max_sw_cnt = 3, exit_perc = (80*0.01), side = "lo
                 # Mark the row where max_high occurs as True
                 df.at[max_high_index, f'sw_top_{side}'] = True
                 df[f'sw_trend_{side}'].iloc[i] = -1
-                print(df.index[i], "logic 4")
-            print(df.index[i], prev_high, prev_low, df[f'sw_trend_{side}'][i])
+                # print(df.index[i], "logic 4")
+            # print(df.index[i], prev_high, prev_low, df[f'sw_trend_{side}'][i])
 
 # Append a 0 at the beginning to match the length of the DataFrame
 # trend_cnt.insert(0, 0)

@@ -398,7 +398,7 @@ if calculate_button:
     st.subheader('Trades Data')
     st.dataframe(dfr_display)
     
-    # Plot the chart
+    # Plot the charts
     # fig = plot_advanced_gann_swing_chart(dfs, dfr)
     # st.session_state.fig = fig
     # # Display the chart in Streamlit
@@ -412,7 +412,7 @@ if st.button("Open Fullscreen Chart"):
     with st.expander("Fullscreen Chart", expanded=True):
         # Create a Plotly Go figure with your chart data
         try:
-            fig = plot_advanced_gann_swing_chart(st.session_state.dfs, st.session_state.dfr, side= showSide)
+            fig = plot_advanced_gann_swing_chart(st.session_state.dfs['2019-09-20':], st.session_state.dfr, side= showSide)
             st.session_state.fig = fig
             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
